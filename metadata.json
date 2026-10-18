@@ -1,0 +1,6 @@
+{
+  "name": "SkyQuiz 3D - Game Edukasi Pesawat Terbang",
+  "description": "Game edukasi 3D interaktif di mana siswa mengendalikan pesawat terbang untuk melintasi gerbang jawaban yang benar di udara dengan lingkungan pemandangan yang indah.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
