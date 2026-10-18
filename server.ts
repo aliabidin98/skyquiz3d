@@ -5,6 +5,8 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
 import os from 'os';
+import { execSync } from 'child_process';
+import archiver from 'archiver';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -497,6 +499,106 @@ app.post('/api/teacher/update-settings', (req, res) => {
   res.json({ success: true, settings: activeSettings });
 });
 
+// Deployment & Docs Folder Endpoints for GitHub Pages
+app.get('/api/teacher/docs-status', (_req, res) => {
+  const docsDir = path.resolve(__dirname, 'docs');
+  const indexPath = path.join(docsDir, 'index.html');
+  const exists = fs.existsSync(indexPath);
+  let lastModified: number | null = null;
+  let fileCount = 0;
+
+  if (exists) {
+    try {
+      const stat = fs.statSync(indexPath);
+      lastModified = stat.mtimeMs;
+      const countFiles = (dir: string): number => {
+        let count = 0;
+        const items = fs.readdirSync(dir);
+        for (const item of items) {
+          const full = path.join(dir, item);
+          if (fs.statSync(full).isDirectory()) {
+            count += countFiles(full);
+          } else {
+            count++;
+          }
+        }
+        return count;
+      };
+      fileCount = countFiles(docsDir);
+    } catch {
+      // ignore
+    }
+  }
+
+  res.json({
+    exists,
+    lastModified,
+    fileCount,
+    docsPath: 'docs/',
+  });
+});
+
+app.post('/api/teacher/build-docs', (req, res) => {
+  const { accessCode } = req.body;
+  if (accessCode !== 'TBRSKY') {
+    return res.status(403).json({ error: 'Kode akses salah!' });
+  }
+
+  try {
+    const scriptPath = path.resolve(__dirname, 'scripts', 'build-docs.js');
+    execSync(`node "${scriptPath}"`, {
+      cwd: __dirname,
+      stdio: 'pipe',
+      env: { ...process.env, VITE_CONFIG_NATIVE_IGNORE_WARNING: 'true' },
+    });
+
+    const docsDir = path.resolve(__dirname, 'docs');
+    const indexPath = path.join(docsDir, 'index.html');
+    const stat = fs.existsSync(indexPath) ? fs.statSync(indexPath) : null;
+
+    res.json({
+      success: true,
+      message: 'Folder /docs berhasil dibuat & siap untuk GitHub Pages!',
+      lastModified: stat ? stat.mtimeMs : Date.now(),
+    });
+  } catch (err: any) {
+    console.error('Error building docs:', err);
+    res.status(500).json({
+      error: 'Gagal membangun folder /docs: ' + (err?.message || String(err)),
+    });
+  }
+});
+
+app.get('/api/teacher/download-docs-zip', (_req, res) => {
+  const docsDir = path.resolve(__dirname, 'docs');
+  const indexPath = path.join(docsDir, 'index.html');
+
+  if (!fs.existsSync(indexPath)) {
+    try {
+      const scriptPath = path.resolve(__dirname, 'scripts', 'build-docs.js');
+      execSync(`node "${scriptPath}"`, {
+        cwd: __dirname,
+        stdio: 'pipe',
+        env: { ...process.env, VITE_CONFIG_NATIVE_IGNORE_WARNING: 'true' },
+      });
+    } catch (err: any) {
+      return res.status(500).send('Gagal membuat folder /docs: ' + (err?.message || ''));
+    }
+  }
+
+  res.setHeader('Content-Type', 'application/zip');
+  res.setHeader('Content-Disposition', 'attachment; filename="skyquiz3d-docs-github-pages.zip"');
+
+  const archive = archiver('zip', { zlib: { level: 9 } });
+  archive.on('error', (err) => {
+    res.status(500).send({ error: err.message });
+  });
+
+  archive.pipe(res);
+  archive.directory(docsDir, false);
+  archive.finalize();
+});
+
 // WebSocket Connection Handlers
 wss.on('connection', (ws) => {
   // Send current state on connect
@@ -534,9 +636,12 @@ async function setupServer() {
     });
     app.use(vite.middlewares);
   } else {
-    app.use(express.static(path.resolve(__dirname, 'dist')));
+    const staticDir = fs.existsSync(path.resolve(__dirname, 'dist'))
+      ? path.resolve(__dirname, 'dist')
+      : path.resolve(__dirname, 'docs');
+    app.use(express.static(staticDir));
     app.get('*', (_req, res) => {
-      res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
+      res.sendFile(path.join(staticDir, 'index.html'));
     });
   }
 

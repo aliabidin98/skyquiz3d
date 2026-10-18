@@ -1,0 +1,133 @@
+<!doctype html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <title>SkyQuiz 3D - Game Edukasi Pesawat Terbang</title>
+    <meta name="description" content="Game edukasi 3D interaktif di mana siswa mengendalikan pesawat terbang untuk melintasi gerbang jawaban yang benar di udara dengan pemandangan 3D yang imersif." />
+    <meta property="og:title" content="SkyQuiz 3D - Game Edukasi Pesawat Terbang" />
+    <meta property="og:description" content="Game edukasi 3D interaktif di mana siswa mengendalikan pesawat terbang untuk melintasi gerbang jawaban yang benar di udara dengan pemandangan 3D yang imersif." />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
+
+    <style>html,body{color:#f8fafc;background-color:#020617;width:100%;height:100%;margin:0;padding:0;font-family:Plus Jakarta Sans,system-ui,-apple-system,sans-serif;overflow:hidden}#initial-loader{z-index:99999;text-align:center;box-sizing:border-box;background:radial-gradient(circle,#0f172a 0%,#020617 100%);flex-direction:column;justify-content:center;align-items:center;padding:24px;display:flex;position:fixed;inset:0}.plane-spinner{background:linear-gradient(135deg,#38bdf8,#10b981);border-radius:20px;justify-content:center;align-items:center;width:68px;height:68px;margin-bottom:20px;animation:2s ease-in-out infinite floatPulse;display:flex;box-shadow:0 10px 25px -5px #38bdf866}.plane-spinner svg{fill:none;stroke:#020617;stroke-width:2.5px;stroke-linecap:round;stroke-linejoin:round;width:38px;height:38px;transform:rotate(-45deg)}@keyframes floatPulse{0%,to{transform:translateY(0)scale(1)}50%{transform:translateY(-8px)scale(1.05)}}.load-bar{background:#1e293b;border-radius:9999px;width:180px;height:5px;margin-top:18px;position:relative;overflow:hidden}.load-bar:after{content:"";background:linear-gradient(90deg,#38bdf8,#34d399);border-radius:9999px;width:40%;animation:1.4s ease-in-out infinite loadSlide;position:absolute;top:0;bottom:0;left:0}@keyframes loadSlide{0%{width:40%;left:-40%}50%{width:60%}to{width:40%;left:100%}}.loader-btn{cursor:pointer;border:none;border-radius:12px;padding:9px 18px;font-size:12px;font-weight:700;text-decoration:none;transition:all .2s;display:inline-block}.loader-btn-primary{color:#020617;background:#38bdf8}.loader-btn-primary:hover{background:#7dd3fc}.loader-btn-secondary{color:#94a3b8;background:#1e293b;border:1px solid #334155}.loader-btn-secondary:hover{color:#f8fafc;border-color:#64748b}</style>
+
+    <script>
+      (function() {
+        // 1. Check for file:// protocol
+        if (location.protocol === 'file:') {
+          window.addEventListener('DOMContentLoaded', function() {
+            var el = document.getElementById('initial-loader');
+            if (el) {
+              el.innerHTML = '<div style="max-width:440px;background:#0f172a;border:1px solid #f43f5e;border-radius:20px;padding:24px;color:#fecdd3;box-shadow:0 20px 25px -5px rgba(0,0,0,0.5);"><h2 style="margin:0 0 10px 0;color:#fda4af;font-size:18px;font-weight:800;">Buka Menggunakan Web Server</h2><p style="font-size:13px;line-height:1.6;margin:0 0 16px 0;color:#cbd5e1;">Aplikasi SkyQuiz 3D berbasis modul ES modern dan Three.js, sehingga tidak dapat dibuka langsung melalui double-click berkas lokal (file:///).</p><p style="font-size:12px;background:#1e293b;padding:12px;border-radius:12px;color:#38bdf8;margin:0;font-family:monospace;">Silakan deploy via GitHub Pages atau jalankan: npm run preview</p></div>';
+            }
+          });
+          return;
+        }
+
+        // 2. Redirect to trailing slash specifically for GitHub Pages repositories
+        // e.g. https://username.github.io/skyquiz3d -> https://username.github.io/skyquiz3d/
+        var host = window.location.hostname || '';
+        var path = window.location.pathname || '';
+        if (host.endsWith('github.io') && path && !path.endsWith('/') && !path.slice(-5).includes('.')) {
+          window.location.replace(window.location.origin + path + '/' + window.location.search + window.location.hash);
+        }
+      })();
+
+      // 3. Global Capture for Script or Resource Loading Failures
+      window.addEventListener('error', function(event) {
+        var target = event.target || {};
+        var src = target.src || target.href || '';
+        var isScriptError = target.tagName === 'SCRIPT' || target.tagName === 'LINK';
+
+        var loader = document.getElementById('initial-loader');
+        if (loader) {
+          var errCard = document.getElementById('loader-error-card');
+          if (errCard) {
+            errCard.style.display = 'block';
+            var detailText = document.getElementById('loader-error-detail');
+            if (detailText) {
+              if (isScriptError && src) {
+                detailText.textContent = 'Gagal memuat berkas: ' + src.split('/').pop() + '. Pastikan URL diakhiri tanda garis miring (/)';
+              } else if (event.message) {
+                detailText.textContent = event.message;
+              }
+            }
+          }
+        }
+      }, true);
+
+      // 4. Loading Timeout Recovery Monitor (Shows helpful action after 5.5s)
+      setTimeout(function() {
+        var loader = document.getElementById('initial-loader');
+        if (loader) {
+          var slowCard = document.getElementById('loader-slow-card');
+          if (slowCard) {
+            slowCard.style.display = 'block';
+          }
+        }
+      }, 5500);
+    </script>
+    <script type="module" crossorigin src="./assets/index-DDWox-pP.js"></script>
+    <link rel="stylesheet" crossorigin href="./assets/index-BZkER7j6.css">
+  </head>
+  <body>
+    <div id="root">
+      <!-- High-performance inline splash screen (replaced cleanly when React mounts) -->
+      <div id="initial-loader">
+        <div class="plane-spinner">
+          <svg viewBox="0 0 24 24">
+            <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/>
+          </svg>
+        </div>
+        <div style="font-size: 22px; font-weight: 900; letter-spacing: -0.5px; background: linear-gradient(to right, #38bdf8, #34d399, #fde047); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+          SkyQuiz 3D
+        </div>
+        <div id="loader-status-text" style="font-size: 13px; color: #94a3b8; font-weight: 600; margin-top: 6px;">
+          Memuat simulasi penerbangan & soal kuis...
+        </div>
+        <div class="load-bar"></div>
+
+        <!-- Dynamic Error Feedback Card (Hidden by default, shown if an error occurs) -->
+        <div id="loader-error-card" style="display: none; max-width: 420px; margin-top: 24px; background: #0f172a; border: 1px solid #f43f5e; border-radius: 18px; padding: 18px; box-shadow: 0 10px 25px -5px rgba(244, 63, 94, 0.25);">
+          <div style="font-size: 14px; font-weight: 800; color: #fda4af; margin-bottom: 6px;">
+            ⚠️ Kendala Memuat Berkas Skrip
+          </div>
+          <p id="loader-error-detail" style="font-size: 11px; line-height: 1.5; color: #e2e8f0; margin: 0 0 14px 0; font-family: monospace; background: #020617; padding: 8px 12px; border-radius: 10px; word-break: break-all;">
+            Gagal menghubungkan ke modul aplikasi.
+          </p>
+          <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+            <button class="loader-btn loader-btn-primary" onclick="window.location.reload();">
+              🔄 Muat Ulang Halaman
+            </button>
+            <button class="loader-btn loader-btn-secondary" onclick="try{localStorage.clear();sessionStorage.clear();}catch(e){}window.location.reload();">
+              🧹 Bersihkan Cache
+            </button>
+          </div>
+        </div>
+
+        <!-- Slow Loading Recovery Card (Appears after 5.5s if still loading) -->
+        <div id="loader-slow-card" style="display: none; max-width: 440px; margin-top: 24px; background: #0f172a; border: 1px solid #38bdf8; border-radius: 18px; padding: 18px; box-shadow: 0 10px 25px -5px rgba(56, 189, 248, 0.2);">
+          <div style="font-size: 14px; font-weight: 800; color: #7dd3fc; margin-bottom: 6px;">
+            ✈️ Memuat Sedikit Lebih Lama...
+          </div>
+          <p style="font-size: 12px; line-height: 1.5; color: #cbd5e1; margin: 0 0 14px 0;">
+            Jika layar ini tetap berputar, pastikan URL di browser diakhiri garis miring <code style="background:#1e293b;padding:2px 6px;border-radius:6px;color:#38bdf8;">/</code> atau klik tombol di bawah untuk menyegarkan:
+          </p>
+          <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+            <button class="loader-btn loader-btn-primary" onclick="window.location.reload();">
+              🔄 Refresh Halaman
+            </button>
+            <button class="loader-btn loader-btn-secondary" onclick="try{localStorage.clear();sessionStorage.clear();}catch(e){}window.location.reload();">
+              🧹 Reset Data & Mulai Ulang
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

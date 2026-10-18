@@ -701,8 +701,32 @@ class RealtimeSyncService {
     try {
       return typeof localStorage !== 'undefined' ? localStorage.getItem('skyquiz_student_id') : null;
     } catch {
-      return null;
+  public async getDocsStatus(): Promise<{ exists: boolean; lastModified: number | null; fileCount: number } | null> {
+    try {
+      const res = await fetch('/api/teacher/docs-status');
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch {
+      // ignore
     }
+    return null;
+  }
+
+  public async buildDocsFolder(accessCode: string): Promise<{ success: boolean; message: string; lastModified?: number } | null> {
+    try {
+      const res = await fetch('/api/teacher/build-docs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accessCode }),
+      });
+      if (res.ok) {
+        return await res.json();
+      }
+    } catch {
+      // ignore
+    }
+    return null;
   }
 }
 
