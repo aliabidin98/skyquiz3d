@@ -29,12 +29,16 @@ class RealtimeSyncService {
   };
 
   constructor() {
-    this.currentStudentId = typeof localStorage !== 'undefined' ? localStorage.getItem('skyquiz_student_id') : null;
+    try {
+      this.currentStudentId = typeof localStorage !== 'undefined' ? localStorage.getItem('skyquiz_student_id') : null;
+    } catch {
+      this.currentStudentId = null;
+    }
     this.loadCachedSettings();
     this.initBroadcastChannel();
 
     // Check if hosted on GitHub Pages or static host
-    if (typeof window !== 'undefined' && window.location.hostname.endsWith('github.io')) {
+    if (typeof window !== 'undefined' && (window.location.hostname.endsWith('github.io') || window.location.protocol === 'file:')) {
       this.isStaticDeployment = true;
     }
 
@@ -658,11 +662,21 @@ class RealtimeSyncService {
   }
 
   public getCurrentStudentId(): string | null {
-    return this.currentStudentId || (typeof localStorage !== 'undefined' ? localStorage.getItem('skyquiz_student_id') : null);
+    if (this.currentStudentId) return this.currentStudentId;
+    try {
+      return typeof localStorage !== 'undefined' ? localStorage.getItem('skyquiz_student_id') : null;
+    } catch {
+      return null;
+    }
   }
 
   public getCachedSettings(): ExamSettings {
-    return this.cachedSettings;
+    return this.cachedSettings || {
+      examCode: 'SKY-2026',
+      shuffleQuestions: false,
+      scorePerQuestion: 20,
+      useComboBonus: false,
+    };
   }
 }
 

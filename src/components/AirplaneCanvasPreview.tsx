@@ -21,24 +21,29 @@ export const AirplaneCanvasPreview: React.FC<AirplaneCanvasPreviewProps> = ({
     const container = mountRef.current;
     if (!container) return;
 
-    const width = container.clientWidth || 320;
-    const height = container.clientHeight || 220;
+    let animId = 0;
+    let renderer: THREE.WebGLRenderer | null = null;
+    let cleanupListeners = () => {};
 
-    // 1. Scene & Camera
-    const scene = new THREE.Scene();
+    try {
+      const width = container.clientWidth || 320;
+      const height = container.clientHeight || 220;
 
-    const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
-    camera.position.set(0, 1.2, 5.8);
-    camera.lookAt(0, 0, 0);
+      // 1. Scene & Camera
+      const scene = new THREE.Scene();
 
-    // 2. Renderer
-    const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
-    renderer.setSize(width, height);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.2;
-    container.innerHTML = '';
-    container.appendChild(renderer.domElement);
+      const camera = new THREE.PerspectiveCamera(40, width / height, 0.1, 100);
+      camera.position.set(0, 1.2, 5.8);
+      camera.lookAt(0, 0, 0);
+
+      // 2. Renderer
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, powerPreference: 'low-power' });
+      renderer.setSize(width, height);
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.toneMapping = THREE.ACESFilmicToneMapping;
+      renderer.toneMappingExposure = 1.2;
+      container.innerHTML = '';
+      container.appendChild(renderer.domElement);
 
     // 3. Lighting
     const ambientLight = new THREE.AmbientLight(0xffffff, 1.4);
@@ -183,7 +188,9 @@ export const AirplaneCanvasPreview: React.FC<AirplaneCanvasPreviewProps> = ({
         }
       });
 
-      renderer.render(scene, camera);
+      if (renderer) {
+        renderer.render(scene, camera);
+      }
     };
 
     animate();
@@ -196,21 +203,35 @@ export const AirplaneCanvasPreview: React.FC<AirplaneCanvasPreviewProps> = ({
       if (w === 0 || h === 0) return;
       camera.aspect = w / h;
       camera.updateProjectionMatrix();
-      renderer.setSize(w, h);
+      if (renderer) {
+        renderer.setSize(w, h);
+      }
     };
 
     window.addEventListener('resize', handleResize);
 
-    return () => {
-      cancelAnimationFrame(animId);
-      dom.removeEventListener('pointerdown', handlePointerDown);
-      window.removeEventListener('pointermove', handlePointerMove);
-      window.removeEventListener('pointerup', handlePointerUp);
-      window.removeEventListener('resize', handleResize);
-      renderer.dispose();
-      if (container.contains(renderer.domElement)) {
-        container.removeChild(renderer.domElement);
+      cleanupListeners = () => {
+        cancelAnimationFrame(animId);
+        dom.removeEventListener('pointerdown', handlePointerDown);
+        window.removeEventListener('pointermove', handlePointerMove);
+        window.removeEventListener('pointerup', handlePointerUp);
+        window.removeEventListener('resize', handleResize);
+        if (renderer) {
+          renderer.dispose();
+          if (container && container.contains(renderer.domElement)) {
+            container.removeChild(renderer.domElement);
+          }
+        }
+      };
+    } catch (err) {
+      console.warn('WebGL Preview unavailable:', err);
+      if (container) {
+        container.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;color:#38bdf8;font-size:12px;font-weight:bold;">✈️ Pesawat Siap Digunakan</div>';
       }
+    }
+
+    return () => {
+      cleanupListeners();
     };
   }, [aircraftType]);
 

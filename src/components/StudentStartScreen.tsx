@@ -54,7 +54,7 @@ export const StudentStartScreen: React.FC<StudentStartScreenProps> = ({
 }) => {
   const [showHowTo, setShowHowTo] = useState(false);
   const [errorValidation, setErrorValidation] = useState<string | null>(null);
-  const [activeTeacherCode, setActiveTeacherCode] = useState<string>(() => syncService.getCachedSettings().examCode);
+  const [activeTeacherCode, setActiveTeacherCode] = useState<string>(() => syncService.getCachedSettings()?.examCode || 'PAS-1');
 
   useEffect(() => {
     syncService.fetchLatestSession().then((data) => {

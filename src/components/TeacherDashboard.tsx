@@ -55,10 +55,10 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const [resettingId, setResettingId] = useState<string | null>(null);
 
   // Form states for settings
-  const [formExamCode, setFormExamCode] = useState<string>(settings.examCode);
-  const [formShuffle, setFormShuffle] = useState<boolean>(settings.shuffleQuestions);
-  const [formScorePerQuestion, setFormScorePerQuestion] = useState<number>(settings.scorePerQuestion);
-  const [formUseCombo, setFormUseCombo] = useState<boolean>(settings.useComboBonus);
+  const [formExamCode, setFormExamCode] = useState<string>(settings?.examCode || 'PAS-1');
+  const [formShuffle, setFormShuffle] = useState<boolean>(settings?.shuffleQuestions ?? false);
+  const [formScorePerQuestion, setFormScorePerQuestion] = useState<number>(settings?.scorePerQuestion ?? 20);
+  const [formUseCombo, setFormUseCombo] = useState<boolean>(settings?.useComboBonus ?? false);
   const [settingsSavedToast, setSettingsSavedToast] = useState<boolean>(false);
 
   useEffect(() => {

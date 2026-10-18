@@ -89,12 +89,38 @@
         50% { width: 60%; }
         100% { left: 100%; width: 40%; }
       }
+      .loader-btn {
+        display: inline-block;
+        padding: 9px 18px;
+        font-size: 12px;
+        font-weight: 700;
+        border-radius: 12px;
+        cursor: pointer;
+        text-decoration: none;
+        border: none;
+        transition: all 0.2s ease;
+      }
+      .loader-btn-primary {
+        background: #38bdf8;
+        color: #020617;
+      }
+      .loader-btn-primary:hover {
+        background: #7dd3fc;
+      }
+      .loader-btn-secondary {
+        background: #1e293b;
+        color: #94a3b8;
+        border: 1px solid #334155;
+      }
+      .loader-btn-secondary:hover {
+        color: #f8fafc;
+        border-color: #64748b;
+      }
     </style>
 
     <script>
-      // Automatically redirect to trailing slash if opened on GitHub Pages sub-directory without '/'
-      // e.g. https://username.github.io/skyquiz3d -> https://username.github.io/skyquiz3d/
       (function() {
+        // 1. Check for file:// protocol
         if (location.protocol === 'file:') {
           window.addEventListener('DOMContentLoaded', function() {
             var el = document.getElementById('initial-loader');
@@ -105,11 +131,48 @@
           return;
         }
 
-        var path = window.location.pathname;
-        if (path && !path.endsWith('/') && !path.slice(-5).includes('.')) {
+        // 2. Redirect to trailing slash specifically for GitHub Pages repositories
+        // e.g. https://username.github.io/skyquiz3d -> https://username.github.io/skyquiz3d/
+        var host = window.location.hostname || '';
+        var path = window.location.pathname || '';
+        if (host.endsWith('github.io') && path && !path.endsWith('/') && !path.slice(-5).includes('.')) {
           window.location.replace(window.location.origin + path + '/' + window.location.search + window.location.hash);
         }
       })();
+
+      // 3. Global Capture for Script or Resource Loading Failures
+      window.addEventListener('error', function(event) {
+        var target = event.target || {};
+        var src = target.src || target.href || '';
+        var isScriptError = target.tagName === 'SCRIPT' || target.tagName === 'LINK';
+
+        var loader = document.getElementById('initial-loader');
+        if (loader) {
+          var errCard = document.getElementById('loader-error-card');
+          if (errCard) {
+            errCard.style.display = 'block';
+            var detailText = document.getElementById('loader-error-detail');
+            if (detailText) {
+              if (isScriptError && src) {
+                detailText.textContent = 'Gagal memuat berkas: ' + src.split('/').pop() + '. Pastikan URL diakhiri tanda garis miring (/)';
+              } else if (event.message) {
+                detailText.textContent = event.message;
+              }
+            }
+          }
+        }
+      }, true);
+
+      // 4. Loading Timeout Recovery Monitor (Shows helpful action after 5.5s)
+      setTimeout(function() {
+        var loader = document.getElementById('initial-loader');
+        if (loader) {
+          var slowCard = document.getElementById('loader-slow-card');
+          if (slowCard) {
+            slowCard.style.display = 'block';
+          }
+        }
+      }, 5500);
     </script>
   </head>
   <body>
@@ -124,10 +187,46 @@
         <div style="font-size: 22px; font-weight: 900; letter-spacing: -0.5px; background: linear-gradient(to right, #38bdf8, #34d399, #fde047); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
           SkyQuiz 3D
         </div>
-        <div style="font-size: 13px; color: #94a3b8; font-weight: 600; margin-top: 6px;">
+        <div id="loader-status-text" style="font-size: 13px; color: #94a3b8; font-weight: 600; margin-top: 6px;">
           Memuat simulasi penerbangan & soal kuis...
         </div>
         <div class="load-bar"></div>
+
+        <!-- Dynamic Error Feedback Card (Hidden by default, shown if an error occurs) -->
+        <div id="loader-error-card" style="display: none; max-width: 420px; margin-top: 24px; background: #0f172a; border: 1px solid #f43f5e; border-radius: 18px; padding: 18px; box-shadow: 0 10px 25px -5px rgba(244, 63, 94, 0.25);">
+          <div style="font-size: 14px; font-weight: 800; color: #fda4af; margin-bottom: 6px;">
+            ⚠️ Kendala Memuat Berkas Skrip
+          </div>
+          <p id="loader-error-detail" style="font-size: 11px; line-height: 1.5; color: #e2e8f0; margin: 0 0 14px 0; font-family: monospace; background: #020617; padding: 8px 12px; border-radius: 10px; word-break: break-all;">
+            Gagal menghubungkan ke modul aplikasi.
+          </p>
+          <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+            <button class="loader-btn loader-btn-primary" onclick="window.location.reload();">
+              🔄 Muat Ulang Halaman
+            </button>
+            <button class="loader-btn loader-btn-secondary" onclick="try{localStorage.clear();sessionStorage.clear();}catch(e){}window.location.reload();">
+              🧹 Bersihkan Cache
+            </button>
+          </div>
+        </div>
+
+        <!-- Slow Loading Recovery Card (Appears after 5.5s if still loading) -->
+        <div id="loader-slow-card" style="display: none; max-width: 440px; margin-top: 24px; background: #0f172a; border: 1px solid #38bdf8; border-radius: 18px; padding: 18px; box-shadow: 0 10px 25px -5px rgba(56, 189, 248, 0.2);">
+          <div style="font-size: 14px; font-weight: 800; color: #7dd3fc; margin-bottom: 6px;">
+            ✈️ Memuat Sedikit Lebih Lama...
+          </div>
+          <p style="font-size: 12px; line-height: 1.5; color: #cbd5e1; margin: 0 0 14px 0;">
+            Jika layar ini tetap berputar, pastikan URL di browser diakhiri garis miring <code style="background:#1e293b;padding:2px 6px;border-radius:6px;color:#38bdf8;">/</code> atau klik tombol di bawah untuk menyegarkan:
+          </p>
+          <div style="display: flex; gap: 8px; justify-content: center; flex-wrap: wrap;">
+            <button class="loader-btn loader-btn-primary" onclick="window.location.reload();">
+              🔄 Refresh Halaman
+            </button>
+            <button class="loader-btn loader-btn-secondary" onclick="try{localStorage.clear();sessionStorage.clear();}catch(e){}window.location.reload();">
+              🧹 Reset Data & Mulai Ulang
+            </button>
+          </div>
+        </div>
       </div>
     </div>
     <script type="module" src="/src/main.tsx"></script>
