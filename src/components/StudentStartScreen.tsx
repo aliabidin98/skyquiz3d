@@ -66,7 +66,7 @@ export const StudentStartScreen: React.FC<StudentStartScreenProps> = ({
       }
     });
 
-    const unsubscribe = syncService.onSettingsUpdate((settings) => {
+    const unsubscribeSettings = syncService.onSettingsUpdate((settings) => {
       if (settings.examCode) {
         setActiveTeacherCode(settings.examCode);
         if (!examCode || examCode === 'PAS-1') {
@@ -75,7 +75,9 @@ export const StudentStartScreen: React.FC<StudentStartScreenProps> = ({
       }
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribeSettings();
+    };
   }, [examCode, onExamCodeChange]);
 
   const renderVehicleIcon = (type: AircraftType) => {
@@ -93,7 +95,7 @@ export const StudentStartScreen: React.FC<StudentStartScreenProps> = ({
 
   const handleLaunch = () => {
     if (hasCompletedExam) {
-      setErrorValidation('Anda telah menyelesaikan ujian ini (hanya 1x bermain). Minta guru mereset jika ingin mengulang.');
+      setErrorValidation('Anda telah menyelesaikan ujian ini (hanya 1x kesempatan bermain). Minta guru mereset jika ingin mengulang.');
       return;
     }
     if (!studentName.trim()) {
@@ -139,7 +141,7 @@ export const StudentStartScreen: React.FC<StudentStartScreenProps> = ({
         <div className="flex items-center gap-2">
           <div className="hidden sm:flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-[11px] text-emerald-300 font-semibold">
             <Wifi className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
-            <span>Terkoneksi ke Guru</span>
+            <span>Tersambung Online</span>
           </div>
 
           <button
@@ -171,7 +173,7 @@ export const StudentStartScreen: React.FC<StudentStartScreenProps> = ({
             <div className="space-y-1">
               <strong className="text-amber-300 font-bold text-xs block">💡 Panduan Siswa:</strong>
               <p>
-                Pesawatmu akan terbang otomatis di angkasa. Arahkan pesawat ke salah satu gerbang bulat (A, B, C, D) di depan. Kamu juga bisa mengusap layar langsung untuk mengarahkan pesawat. Saat pesawat menembus gerbang, soal ujian akan muncul untuk dijawab. Siswa hanya bermain 1 kali tanpa bermain ulang, dan seluruh nilai otomatis terkirim ke Guru!
+                Pesawatmu akan terbang di angkasa. Arahkan pesawat ke salah satu gerbang jawaban (A, B, C, D) di depan. Kamu juga bisa mengusap layar langsung untuk mengarahkan pesawat. Saat pesawat menembus gerbang, soal ujian akan terbuka untuk dijawab. Setiap siswa hanya dapat bermain 1 kali tanpa bermain ulang, dan seluruh nilai otomatis tersimpan ke Guru!
               </p>
             </div>
             <button
@@ -193,7 +195,7 @@ export const StudentStartScreen: React.FC<StudentStartScreenProps> = ({
                 Ujian Telah Diselesaikan (1x Kesempatan)
               </strong>
               <p>
-                Anda sudah menyelesaikan sesi soal ujian ini. Sesuai aturan ujian, Anda <strong>hanya dapat bermain 1 kali saja tanpa bermain ulang</strong>. Jika Guru mengizinkan pengulangan ujian, silakan minta Guru untuk melakukan <em>Reset Siswa</em> pada layar Menu Guru.
+                Anda sudah menyelesaikan sesi soal ujian ini. Sesuai aturan ujian, Anda <strong>hanya dapat bermain 1 kali saja tanpa bermain ulang</strong>. Jika Guru mengizinkan pengulangan ujian, silakan minta Guru untuk melakukan <em>Reset Siswa</em> pada menu Guru.
               </p>
             </div>
           </div>
@@ -208,8 +210,21 @@ export const StudentStartScreen: React.FC<StudentStartScreenProps> = ({
         )}
 
         {/* 1. Student Identity Inputs: Nama, Kelas & Kode Ujian */}
-        <div className="bg-slate-900/80 border border-sky-500/30 rounded-2xl p-4 shadow-lg">
+        <div className="bg-slate-900/80 border border-sky-500/30 rounded-2xl p-4 shadow-lg space-y-3">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+            <div className="flex items-center gap-2">
+              <User className="w-4 h-4 text-sky-400" />
+              <span className="text-xs font-black uppercase tracking-wider text-sky-300">
+                Identitas Peserta Ujian
+              </span>
+            </div>
+            <span className="text-[11px] text-slate-400">
+              Isi data diri untuk rekap nilai otomatis guru
+            </span>
+          </div>
+
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5">
+            {/* Nama Siswa */}
             <div>
               <label className="block text-xs font-black uppercase tracking-wider text-sky-300 mb-1.5 flex items-center gap-1.5">
                 <User className="w-3.5 h-3.5 text-sky-400" />
@@ -219,7 +234,7 @@ export const StudentStartScreen: React.FC<StudentStartScreenProps> = ({
                 type="text"
                 required
                 disabled={hasCompletedExam}
-                placeholder="Tuliskan nama lengkap..."
+                placeholder="Ketik nama lengkap siswa..."
                 value={studentName}
                 onChange={(e) => {
                   onStudentNameChange(e.target.value);
@@ -233,10 +248,11 @@ export const StudentStartScreen: React.FC<StudentStartScreenProps> = ({
               />
             </div>
 
+            {/* Nama Kelas */}
             <div>
               <label className="block text-xs font-black uppercase tracking-wider text-sky-300 mb-1.5 flex items-center gap-1.5">
                 <GraduationCap className="w-3.5 h-3.5 text-emerald-400" />
-                Nama Kelas <span className="text-rose-400">*</span>
+                Kelas <span className="text-rose-400">*</span>
               </label>
               <input
                 type="text"
@@ -245,7 +261,7 @@ export const StudentStartScreen: React.FC<StudentStartScreenProps> = ({
                 placeholder="Contoh: 8A, 7B, 9C..."
                 value={studentClass}
                 onChange={(e) => {
-                  onStudentClassChange(e.target.value);
+                  onStudentClassChange(e.target.value.toUpperCase());
                   if (errorValidation) setErrorValidation(null);
                 }}
                 className={`w-full bg-slate-950 border rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 font-bold focus:outline-none focus:ring-2 focus:ring-emerald-400/30 transition-all ${
@@ -256,94 +272,98 @@ export const StudentStartScreen: React.FC<StudentStartScreenProps> = ({
               />
             </div>
 
+            {/* Kode Ujian */}
             <div>
-              <label className="block text-xs font-black uppercase tracking-wider text-sky-300 mb-1.5 flex items-center gap-1.5">
-                <KeyRound className="w-3.5 h-3.5 text-amber-400" />
-                Kode Ujian <span className="text-rose-400">*</span>
-              </label>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-xs font-black uppercase tracking-wider text-sky-300 flex items-center gap-1.5">
+                  <KeyRound className="w-3.5 h-3.5 text-amber-400" />
+                  Kode Ujian <span className="text-rose-400">*</span>
+                </label>
+                {activeTeacherCode && (
+                  <button
+                    type="button"
+                    onClick={() => onExamCodeChange(activeTeacherCode)}
+                    className="text-[10px] text-amber-400 hover:text-amber-300 underline cursor-pointer"
+                  >
+                    Gunakan: {activeTeacherCode}
+                  </button>
+                )}
+              </div>
               <input
                 type="text"
                 required
                 disabled={hasCompletedExam}
-                placeholder="Contoh: PAS-8A, UJIAN-1..."
+                placeholder="Ketik kode dari guru..."
                 value={examCode}
                 onChange={(e) => {
                   onExamCodeChange(e.target.value.toUpperCase());
                   if (errorValidation) setErrorValidation(null);
                 }}
-                className={`w-full bg-slate-950 border rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-slate-500 font-bold uppercase tracking-wider focus:outline-none focus:ring-2 focus:ring-amber-400/30 transition-all ${
+                className={`w-full bg-slate-950 border rounded-xl px-3.5 py-2.5 text-xs text-white uppercase placeholder-slate-500 font-black tracking-wider focus:outline-none focus:ring-2 focus:ring-amber-400/30 transition-all ${
                   hasCompletedExam
                     ? 'opacity-60 cursor-not-allowed border-slate-800'
                     : 'border-slate-700 focus:border-amber-400'
                 }`}
               />
             </div>
-
-            {activeTeacherCode && (
-              <div className="sm:col-span-3 mt-1 pt-2.5 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-xs">
-                <span className="text-slate-400 text-[11px] flex items-center gap-1.5 font-medium">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
-                  Kode Ujian Otomatis dari Guru:
-                  <strong className="text-amber-300 font-mono font-bold tracking-wider">{activeTeacherCode}</strong>
-                </span>
-
-                <button
-                  type="button"
-                  disabled={hasCompletedExam}
-                  onClick={() => {
-                    onExamCodeChange(activeTeacherCode);
-                    if (errorValidation) setErrorValidation(null);
-                  }}
-                  className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-400/40 text-[11px] font-bold flex items-center gap-1 transition-all cursor-pointer active:scale-95"
-                >
-                  <span>Gunakan Kode Ini</span>
-                  <span>⚡</span>
-                </button>
-              </div>
-            )}
           </div>
         </div>
 
-        {/* 2. Pilihan Pesawat dengan Animasi 3D */}
-        <div className="relative rounded-3xl overflow-hidden bg-gradient-to-b from-sky-950/40 via-slate-900/60 to-slate-950 border border-sky-500/30 p-4 shadow-xl">
-          <div className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
-            {/* Left Model Selector */}
-            <div className="md:col-span-7 space-y-3">
-              <div className="flex items-center gap-2">
-                <span className="text-[10px] uppercase font-black tracking-widest text-emerald-400 bg-emerald-500/10 border border-emerald-500/30 px-2.5 py-0.5 rounded-md">
-                  Pilihan Pesawat Anda
-                </span>
-                <span className="text-xs text-slate-300 font-semibold">{currentVehicle.name}</span>
-              </div>
+        {/* 2. Interactive Vehicle Showcase & Selector */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-3.5">
+          {/* 3D Interactive Canvas Preview */}
+          <div className="md:col-span-5 bg-slate-900/80 border border-sky-500/30 rounded-2xl p-3.5 flex flex-col items-center justify-between shadow-lg relative overflow-hidden group">
+            <div className="w-full flex items-center justify-between mb-1 z-10">
+              <span className="text-[11px] font-black uppercase tracking-wider text-sky-300 flex items-center gap-1.5">
+                {renderVehicleIcon(selectedAircraftType)}
+                <span>{currentVehicle.name}</span>
+              </span>
+              <span className="text-[10px] text-sky-200/60 bg-sky-500/10 px-2 py-0.5 rounded-full border border-sky-500/20">
+                Putar 3D Bebas
+              </span>
+            </div>
 
-              <h2 className="text-lg sm:text-xl font-black text-white leading-tight">
-                Terbang dengan <span className="text-transparent bg-clip-text bg-gradient-to-r from-sky-400 via-teal-300 to-amber-300">{currentVehicle.name}</span>
-              </h2>
+            {/* 3D Canvas Box */}
+            <div className="w-full h-44 sm:h-48 rounded-xl overflow-hidden relative border border-slate-800/80 bg-radial from-slate-900 to-slate-950">
+              <AirplaneCanvasPreview
+                aircraftType={selectedAircraftType}
+              />
+            </div>
 
-              <p className="text-xs text-slate-300 leading-relaxed">
-                {currentVehicle.tagline}. Anda dapat memutar sudut pesawat 3D dengan menyentuhnya.
-              </p>
+            <div className="w-full mt-2 pt-2 border-t border-slate-800 flex items-center justify-between text-[11px] text-slate-300">
+              <span className="truncate max-w-[200px]">{currentVehicle.tagline}</span>
+              <span className="text-amber-400 font-bold shrink-0">3D Interaktif</span>
+            </div>
+          </div>
 
-              {/* Vehicle Options Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-1">
+          {/* Right Selector Column: Vehicle Types & Difficulty */}
+          <div className="md:col-span-7 space-y-3 flex flex-col justify-between">
+            {/* Model Pesawat Selector (4 Choices) */}
+            <div className="bg-slate-900/80 border border-sky-500/30 rounded-2xl p-3.5 shadow-lg space-y-2">
+              <label className="text-xs font-black uppercase tracking-wider text-sky-300 block">
+                Pilih Model Pesawat:
+              </label>
+              <div className="grid grid-cols-2 gap-2">
                 {AIRCRAFT_MODELS.map((model) => {
                   const isSelected = selectedAircraftType === model.id;
                   return (
                     <button
                       key={model.id}
                       type="button"
+                      disabled={hasCompletedExam}
                       onClick={() => onSelectAircraftType(model.id)}
-                      className={`p-2 rounded-xl border text-left flex items-center gap-2 transition-all cursor-pointer ${
+                      className={`p-2.5 rounded-xl border text-left transition-all flex items-center gap-2.5 cursor-pointer ${
                         isSelected
-                          ? 'bg-sky-500/20 border-sky-400 ring-2 ring-sky-400/40 text-white shadow-md'
-                          : 'bg-slate-800/80 border-slate-700/80 text-slate-300 hover:border-slate-600 hover:bg-slate-800'
-                      }`}
+                          ? 'bg-sky-500/20 border-sky-400 ring-2 ring-sky-400/30'
+                          : 'bg-slate-950/60 border-slate-800 hover:border-slate-700 hover:bg-slate-800/50'
+                      } ${hasCompletedExam ? 'opacity-60 cursor-not-allowed' : ''}`}
                     >
-                      <div className="p-1 rounded-lg bg-slate-900 border border-slate-700 shrink-0">
+                      <div className="p-2 rounded-lg bg-slate-900 border border-slate-700 shrink-0">
                         {renderVehicleIcon(model.id)}
                       </div>
                       <div className="min-w-0">
-                        <span className="text-[11px] font-bold block truncate">{model.name.replace('Pesawat ', '')}</span>
+                        <div className="text-xs font-bold text-white truncate">{model.name}</div>
+                        <div className="text-[10px] text-slate-400 truncate">{model.tagline}</div>
                       </div>
                     </button>
                   );
@@ -351,89 +371,70 @@ export const StudentStartScreen: React.FC<StudentStartScreenProps> = ({
               </div>
             </div>
 
-            {/* Right 3D Airplane Canvas */}
-            <div className="md:col-span-5 h-40 sm:h-44 rounded-2xl bg-gradient-to-b from-sky-900/30 to-slate-900/80 border border-sky-400/20 relative overflow-hidden flex items-center justify-center">
-              <AirplaneCanvasPreview
-                aircraftType={selectedAircraftType}
-                className="w-full h-full"
-              />
-              <div className="absolute bottom-2 right-2 text-[10px] text-sky-300/70 bg-slate-950/70 px-2 py-0.5 rounded-md pointer-events-none border border-slate-800">
-                ✨ Putar 3D
+            {/* Tingkat Kesulitan */}
+            <div className="bg-slate-900/80 border border-sky-500/30 rounded-2xl p-3.5 shadow-lg space-y-2">
+              <label className="text-xs font-black uppercase tracking-wider text-sky-300 block flex items-center justify-between">
+                <span>Tingkat Kesulitan Kendali:</span>
+                <span className="text-[10px] text-slate-400 font-normal">Sensitivitas & Kecepatan</span>
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { id: 'EASY', label: 'Mudah', desc: 'Santai & Stabil', color: 'border-emerald-500 text-emerald-400' },
+                  { id: 'MEDIUM', label: 'Sedang', desc: 'Seimbang', color: 'border-sky-500 text-sky-400' },
+                  { id: 'HARD', label: 'Sulit', desc: 'Tantangan Tinggi', color: 'border-rose-500 text-rose-400' },
+                ].map((item) => {
+                  const isSelected = difficulty === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      disabled={hasCompletedExam}
+                      onClick={() => onSelectDifficulty(item.id as FlightDifficulty)}
+                      className={`p-2 rounded-xl border text-center transition-all cursor-pointer ${
+                        isSelected
+                          ? `bg-slate-800 ${item.color} ring-2 ring-current`
+                          : 'bg-slate-950/60 border-slate-800 hover:border-slate-700 text-slate-400'
+                      } ${hasCompletedExam ? 'opacity-60 cursor-not-allowed' : ''}`}
+                    >
+                      <div className="text-xs font-black">{item.label}</div>
+                      <div className="text-[10px] opacity-75">{item.desc}</div>
+                    </button>
+                  );
+                })}
               </div>
             </div>
           </div>
         </div>
 
-        {/* 3. Pilihan Kecepatan Jelajah (Clean & Focused) */}
-        <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-md">
-          <div>
-            <span className="text-xs font-bold text-sky-400 uppercase tracking-wider flex items-center gap-1.5">
-              <Gamepad2 className="w-4 h-4 text-emerald-400" />
-              Pilih Kecepatan Terbang:
-            </span>
-            <p className="text-[11px] text-slate-400 mt-0.5">
-              Atur kecepatan laju pesawat sesuai kenyamananmu
-            </p>
-          </div>
-
-          <div className="grid grid-cols-3 gap-2 w-full sm:w-80">
-            {(
-              [
-                { id: 'EASY', label: 'Santai', hint: '~19 dtk' },
-                { id: 'MEDIUM', label: 'Sedang', hint: '~12 dtk' },
-                { id: 'HARD', label: 'Cepat', hint: '~8 dtk' },
-              ] as const
-            ).map((d) => (
-              <button
-                key={d.id}
-                type="button"
-                onClick={() => onSelectDifficulty(d.id)}
-                className={`py-1.5 px-2 rounded-xl border text-center transition-all cursor-pointer ${
-                  difficulty === d.id
-                    ? 'bg-sky-500 text-slate-950 font-black border-sky-400 shadow-sm'
-                    : 'bg-slate-800/80 text-slate-300 border-slate-700 hover:border-slate-600'
-                }`}
-              >
-                <span className="text-xs font-bold block">{d.label}</span>
-                <span className={`text-[9px] block ${difficulty === d.id ? 'text-slate-900' : 'text-slate-400'}`}>
-                  {d.hint}
-                </span>
-              </button>
-            ))}
-          </div>
+        {/* Action Button: Start Flight */}
+        <div className="pt-1">
+          <button
+            type="button"
+            disabled={hasCompletedExam}
+            onClick={handleLaunch}
+            className={`w-full py-3.5 rounded-2xl font-black text-sm uppercase tracking-wider flex items-center justify-center gap-2.5 transition-all shadow-xl ${
+              hasCompletedExam
+                ? 'bg-slate-800 text-slate-500 border border-slate-700 cursor-not-allowed'
+                : 'bg-gradient-to-r from-sky-400 via-teal-400 to-emerald-400 hover:from-sky-300 hover:via-teal-300 hover:to-emerald-300 text-slate-950 shadow-sky-500/25 hover:shadow-sky-500/40 cursor-pointer active:scale-[0.99]'
+            }`}
+          >
+            {hasCompletedExam ? (
+              <>
+                <Lock className="w-5 h-5" />
+                <span>Ujian Telah Selesai (1x Kesempatan Saja)</span>
+              </>
+            ) : (
+              <>
+                <Play className="w-5 h-5 fill-current" />
+                <span>Mulai Terbang & Kerjakan Ujian</span>
+              </>
+            )}
+          </button>
         </div>
       </div>
 
-      {/* Main Launch Button */}
-      <div className="w-full max-w-md pt-2 pb-2">
-        {hasCompletedExam ? (
-          <div className="text-center space-y-1">
-            <button
-              type="button"
-              disabled
-              className="w-full py-3.5 px-6 rounded-2xl bg-slate-800 text-slate-400 border border-slate-700 font-black text-sm md:text-base flex items-center justify-center gap-2.5 cursor-not-allowed opacity-80"
-            >
-              <Lock className="w-4 h-4 text-amber-400" />
-              <span>Selesai (Hanya 1x Bermain) — Menunggu Reset Guru</span>
-            </button>
-            <p className="text-[11px] text-slate-400">
-              Minta Guru menekan tombol <strong>Reset Siswa</strong> di dashboard guru untuk membuka kunci ujian.
-            </p>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={handleLaunch}
-            className="w-full py-3.5 px-6 rounded-2xl bg-gradient-to-r from-sky-400 via-emerald-400 to-amber-400 hover:from-sky-300 hover:to-emerald-300 text-slate-950 font-black text-base md:text-lg flex items-center justify-center gap-2.5 shadow-xl shadow-sky-500/25 hover:shadow-emerald-500/35 active:scale-98 transition-all cursor-pointer uppercase tracking-wider"
-          >
-            <Play className="w-5 h-5 fill-slate-950" />
-            <span>Mulai Terbang & Jawab Soal Ujian!</span>
-          </button>
-        )}
-      </div>
-
       {/* Creator Footer */}
-      <Footer className="mt-2 rounded-2xl border border-slate-800/80 max-w-4xl" />
+      <Footer className="w-full max-w-4xl pt-1" />
     </div>
   );
 };

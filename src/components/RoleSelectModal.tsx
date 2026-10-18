@@ -1,6 +1,5 @@
-import React, { useState } from 'react';
-import { Plane, GraduationCap, ShieldCheck, ArrowRight, Lock, Sparkles, X, Eye, EyeOff } from 'lucide-react';
-
+import React, { useState, useEffect } from 'react';
+import { Plane, GraduationCap, ShieldCheck, ArrowRight, Lock, Sparkles, X, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
 import { Footer } from './Footer';
 
 interface RoleSelectModalProps {
@@ -20,18 +19,58 @@ export const RoleSelectModal: React.FC<RoleSelectModalProps> = ({
   const [passcode, setPasscode] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [passcodeError, setPasscodeError] = useState(false);
+  const [rememberPasscode, setRememberPasscode] = useState(true);
+  const [isRemembered, setIsRemembered] = useState(false);
+
+  useEffect(() => {
+    if (typeof localStorage !== 'undefined') {
+      const savedAuth = localStorage.getItem('skyquiz_teacher_authenticated');
+      const savedToken = localStorage.getItem('skyquiz_teacher_access_token');
+      if (savedAuth === 'true' || savedToken === 'TBRSKY') {
+        setIsRemembered(true);
+      } else {
+        setIsRemembered(false);
+      }
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
+
+  const handleTeacherClick = () => {
+    // If access code was already remembered on this device, directly open without prompt!
+    if (isRemembered) {
+      onSelectTeacher();
+    } else {
+      setShowPasscodeInput(true);
+    }
+  };
 
   const handleVerifyTeacher = (e: React.FormEvent) => {
     e.preventDefault();
     if (passcode.trim().toUpperCase() === 'TBRSKY') {
       setPasscodeError(false);
       setShowPasscodeInput(false);
+
+      if (rememberPasscode && typeof localStorage !== 'undefined') {
+        localStorage.setItem('skyquiz_teacher_authenticated', 'true');
+        localStorage.setItem('skyquiz_teacher_access_token', 'TBRSKY');
+        setIsRemembered(true);
+      }
+
       setPasscode('');
       onSelectTeacher();
     } else {
       setPasscodeError(true);
+    }
+  };
+
+  const handleClearSavedCredentials = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem('skyquiz_teacher_authenticated');
+      localStorage.removeItem('skyquiz_teacher_access_token');
+      setIsRemembered(false);
+      setShowPasscodeInput(true);
     }
   };
 
@@ -91,38 +130,70 @@ export const RoleSelectModal: React.FC<RoleSelectModalProps> = ({
 
             {/* 2. Card Guru */}
             <div
-              onClick={() => setShowPasscodeInput(true)}
-              className="group relative p-4 rounded-2xl bg-slate-800/80 hover:bg-slate-800 border border-slate-700/80 hover:border-amber-400 transition-all cursor-pointer shadow-md hover:shadow-amber-500/10 active:scale-[0.99]"
+              onClick={handleTeacherClick}
+              className={`group relative p-4 rounded-2xl bg-slate-800/80 hover:bg-slate-800 border transition-all cursor-pointer shadow-md active:scale-[0.99] ${
+                isRemembered
+                  ? 'border-emerald-500/50 hover:border-emerald-400 hover:shadow-emerald-500/15'
+                  : 'border-slate-700/80 hover:border-amber-400 hover:shadow-amber-500/10'
+              }`}
             >
               <div className="flex items-center gap-3.5">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-tr from-amber-400 to-orange-400 flex items-center justify-center text-slate-950 shrink-0 group-hover:scale-105 transition-transform">
+                <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-slate-950 shrink-0 group-hover:scale-105 transition-transform ${
+                  isRemembered
+                    ? 'bg-gradient-to-tr from-emerald-400 to-teal-400'
+                    : 'bg-gradient-to-tr from-amber-400 to-orange-400'
+                }`}>
                   <GraduationCap className="w-6 h-6" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between">
                     <h3 className="text-sm font-black text-white group-hover:text-amber-300 transition-colors flex items-center gap-1.5">
                       Mode Guru (Perangkat Utama)
-                      <Lock className="w-3.5 h-3.5 text-amber-400" />
+                      {isRemembered ? (
+                        <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+                      ) : (
+                        <Lock className="w-3.5 h-3.5 text-amber-400" />
+                      )}
                     </h3>
-                    <span className="text-[10px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full">
-                      Host Kelas
-                    </span>
+                    {isRemembered ? (
+                      <span className="text-[10px] font-bold text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
+                        <CheckCircle2 className="w-3 h-3" />
+                        Tersimpan
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold text-amber-300 bg-amber-500/10 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                        Host Kelas
+                      </span>
+                    )}
                   </div>
                   <p className="text-xs text-slate-300 mt-0.5">
-                    Pantau siswa secara real-time, proyeksikan ke proyektor, dan lihat rekap jawaban siswa.
+                    {isRemembered
+                      ? 'Kode akses tersimpan di perangkat ini. Klik untuk langsung membuka Dashboard.'
+                      : 'Pantau siswa secara real-time, proyeksikan ke proyektor, dan lihat rekap jawaban siswa.'}
                   </p>
+                  {isRemembered && (
+                    <div className="mt-1.5 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleClearSavedCredentials}
+                        className="text-[10px] text-slate-400 hover:text-amber-300 underline cursor-pointer"
+                      >
+                        Ganti Kode / Masukkan Ulang
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <ArrowRight className="w-4 h-4 text-slate-400 group-hover:text-amber-400 group-hover:translate-x-0.5 transition-all" />
               </div>
             </div>
           </div>
         ) : (
-          /* Form Input Passcode Guru - Hidden Code */
+          /* Form Input Passcode Guru */
           <form onSubmit={handleVerifyTeacher} className="space-y-4 animate-in fade-in">
             <div className="p-3 bg-slate-800/80 border border-slate-700 rounded-2xl flex items-center gap-2.5">
               <ShieldCheck className="w-5 h-5 text-amber-400 shrink-0" />
               <div className="text-xs text-slate-200">
-                Akses khusus guru untuk mengelola kelas dan rekap hasil jawaban.
+                Akses khusus guru untuk mengelola ujian dan melihat rekap hasil siswa.
               </div>
             </div>
 
@@ -161,6 +232,19 @@ export const RoleSelectModal: React.FC<RoleSelectModalProps> = ({
                 </p>
               )}
             </div>
+
+            {/* Checkbox Ingat Kode Akses */}
+            <label className="flex items-center gap-2.5 cursor-pointer select-none bg-slate-800/50 p-2.5 rounded-xl border border-slate-700/60">
+              <input
+                type="checkbox"
+                checked={rememberPasscode}
+                onChange={(e) => setRememberPasscode(e.target.checked)}
+                className="w-4 h-4 rounded text-amber-500 focus:ring-amber-400 bg-slate-900 border-slate-600 cursor-pointer"
+              />
+              <span className="text-xs text-slate-200 font-medium">
+                Simpan kode akses di perangkat ini (tidak perlu memasukkan lagi setiap keluar)
+              </span>
+            </label>
 
             <div className="flex items-center gap-2.5 pt-2">
               <button

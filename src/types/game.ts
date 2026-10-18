@@ -68,3 +68,5 @@ export interface ExamSettings {
   scorePerQuestion: number;
   useComboBonus: boolean;
 }
+
+

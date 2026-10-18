@@ -3,6 +3,8 @@ import { createServer } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import fs from 'fs';
+import os from 'os';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -105,9 +107,92 @@ let activeSettings: ExamSettings = {
   useComboBonus: false,
 };
 
+const DATA_DIR = path.resolve(__dirname, 'data');
+const DATA_FILE = path.join(DATA_DIR, 'students_db.json');
+
 const studentsMap = new Map<string, StudentSession>();
 
+function saveDatabaseToDisk() {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    const payload = {
+      sessions: Array.from(studentsMap.values()),
+      settings: activeSettings,
+      questions: activeQuestions,
+      savedAt: Date.now(),
+    };
+    fs.writeFileSync(DATA_FILE, JSON.stringify(payload, null, 2), 'utf-8');
+  } catch (err) {
+    console.warn('Could not save exam database to disk:', err);
+  }
+}
+
+function loadDatabaseFromDisk() {
+  try {
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
+    if (fs.existsSync(DATA_FILE)) {
+      const raw = fs.readFileSync(DATA_FILE, 'utf-8');
+      const data = JSON.parse(raw);
+      if (Array.isArray(data.sessions)) {
+        for (const s of data.sessions) {
+          if (s && s.id) {
+            studentsMap.set(s.id, s);
+          }
+        }
+      }
+      if (data.settings && data.settings.examCode) {
+        activeSettings = { ...activeSettings, ...data.settings };
+      }
+      if (Array.isArray(data.questions) && data.questions.length > 0) {
+        activeQuestions = data.questions;
+      }
+    } else {
+      saveDatabaseToDisk();
+    }
+  } catch (err) {
+    console.warn('Could not load database from disk:', err);
+  }
+}
+
+loadDatabaseFromDisk();
+
+function getLocalIpAddresses(): string[] {
+  const ips: string[] = [];
+  try {
+    const interfaces = os.networkInterfaces();
+    for (const name of Object.keys(interfaces)) {
+      const ifaceList = interfaces[name];
+      if (ifaceList) {
+        for (const iface of ifaceList) {
+          if (iface.family === 'IPv4' && !iface.internal) {
+            ips.push(iface.address);
+          }
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return ips;
+}
+
 const app = express();
+
+// Full CORS middleware to allow student connections from any device / browser / IP / tunnel
+app.use((_req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  if (_req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
+
 app.use(express.json());
 
 const server = createServer(app);
@@ -117,7 +202,11 @@ function broadcast(data: object) {
   const message = JSON.stringify(data);
   wss.clients.forEach((client) => {
     if (client.readyState === WebSocket.OPEN) {
-      client.send(message);
+      try {
+        client.send(message);
+      } catch {
+        // ignore send error
+      }
     }
   });
 }
@@ -128,6 +217,8 @@ app.get('/api/session', (_req, res) => {
     questions: activeQuestions,
     students: Array.from(studentsMap.values()),
     settings: activeSettings,
+    serverIps: getLocalIpAddresses(),
+    serverTime: Date.now(),
   });
 });
 
@@ -169,6 +260,7 @@ app.post('/api/student/join', (req, res) => {
   };
 
   studentsMap.set(studentId, student);
+  saveDatabaseToDisk();
   broadcast({ type: 'student:updated', student });
 
   res.json({ success: true, student, questions: activeQuestions, isCompleted: student.status === 'COMPLETED' });
@@ -176,9 +268,26 @@ app.post('/api/student/join', (req, res) => {
 
 app.post('/api/student/progress', (req, res) => {
   const { studentId, questionIndex, score, combo, status } = req.body;
-  const student = studentsMap.get(studentId);
+  let student = studentsMap.get(studentId);
   if (!student) {
-    return res.status(404).json({ error: 'Student not found' });
+    // Auto-create student if not present so progress is never lost across server restarts or devices
+    student = {
+      id: studentId,
+      name: 'Peserta Ujian',
+      studentClass: '-',
+      examCode: activeSettings.examCode,
+      aircraftType: 'PROPELLER',
+      score: score || 0,
+      combo: combo || 0,
+      maxCombo: combo || 0,
+      currentQuestionIndex: questionIndex || 0,
+      totalQuestions: activeQuestions.length,
+      status: status || 'PLAYING',
+      answers: [],
+      joinedAt: Date.now(),
+      lastUpdated: Date.now(),
+    };
+    studentsMap.set(studentId, student);
   }
 
   student.currentQuestionIndex = questionIndex ?? student.currentQuestionIndex;
@@ -192,6 +301,7 @@ app.post('/api/student/progress', (req, res) => {
   }
   student.lastUpdated = Date.now();
 
+  saveDatabaseToDisk();
   broadcast({ type: 'student:updated', student });
   res.json({ success: true, student });
 });
@@ -209,9 +319,26 @@ app.post('/api/student/answer', (req, res) => {
     timeSpentSec,
   } = req.body;
 
-  const student = studentsMap.get(studentId);
+  let student = studentsMap.get(studentId);
   if (!student) {
-    return res.status(404).json({ error: 'Student not found' });
+    // Auto-create student to guarantee answers from different devices are NEVER lost
+    student = {
+      id: studentId,
+      name: 'Peserta Ujian',
+      studentClass: '-',
+      examCode: activeSettings.examCode,
+      aircraftType: 'PROPELLER',
+      score: 0,
+      combo: 0,
+      maxCombo: 0,
+      currentQuestionIndex: 0,
+      totalQuestions: activeQuestions.length,
+      status: 'PLAYING',
+      answers: [],
+      joinedAt: Date.now(),
+      lastUpdated: Date.now(),
+    };
+    studentsMap.set(studentId, student);
   }
 
   // Idempotent record check for same question
@@ -253,8 +380,26 @@ app.post('/api/student/answer', (req, res) => {
   student.currentQuestionIndex = student.answers.length;
   student.lastUpdated = Date.now();
 
+  saveDatabaseToDisk();
   broadcast({ type: 'student:updated', student });
   res.json({ success: true, student });
+});
+
+// Sync endpoint for offline recovery or multi-device data merge
+app.post('/api/student/sync', (req, res) => {
+  const { student } = req.body;
+  if (!student || !student.id) {
+    return res.status(400).json({ error: 'Data siswa tidak valid' });
+  }
+
+  const existing = studentsMap.get(student.id);
+  if (!existing || (student.lastUpdated && student.lastUpdated > existing.lastUpdated)) {
+    studentsMap.set(student.id, student);
+    saveDatabaseToDisk();
+    broadcast({ type: 'student:updated', student });
+  }
+
+  res.json({ success: true, student: studentsMap.get(student.id) });
 });
 
 // Teacher Endpoints
@@ -269,7 +414,6 @@ app.post('/api/teacher/reset-student', (req, res) => {
 
   const existing = studentsMap.get(studentId);
   if (existing) {
-    // Reset student answers, score, combo, and status
     existing.answers = [];
     existing.score = 0;
     existing.combo = 0;
@@ -283,6 +427,7 @@ app.post('/api/teacher/reset-student', (req, res) => {
     broadcast({ type: 'student:reset', studentId });
   }
 
+  saveDatabaseToDisk();
   broadcast({ type: 'students:list', students: Array.from(studentsMap.values()) });
   res.json({ success: true, message: 'Kesempatan ujian siswa berhasil direset' });
 });
@@ -294,6 +439,7 @@ app.post('/api/teacher/reset-session', (req, res) => {
   }
 
   studentsMap.clear();
+  saveDatabaseToDisk();
   broadcast({ type: 'session:reset' });
   res.json({ success: true, message: 'Semua data siswa berhasil direset' });
 });
@@ -308,6 +454,7 @@ app.post('/api/teacher/update-questions', (req, res) => {
   }
 
   activeQuestions = questions;
+  saveDatabaseToDisk();
   broadcast({ type: 'questions:updated', questions: activeQuestions });
   res.json({ success: true, questions: activeQuestions });
 });
@@ -319,6 +466,7 @@ app.post('/api/teacher/generate-exam-code', (req, res) => {
   }
 
   activeSettings.examCode = generateRandomExamCode();
+  saveDatabaseToDisk();
   broadcast({ type: 'settings:updated', settings: activeSettings });
   res.json({ success: true, settings: activeSettings });
 });
@@ -344,6 +492,7 @@ app.post('/api/teacher/update-settings', (req, res) => {
     }
   }
 
+  saveDatabaseToDisk();
   broadcast({ type: 'settings:updated', settings: activeSettings });
   res.json({ success: true, settings: activeSettings });
 });
@@ -392,7 +541,11 @@ async function setupServer() {
   }
 
   server.listen(port, () => {
-    console.log(`SkyQuiz 3D Server running on http://localhost:${port}`);
+    console.log(`SkyQuiz 3D Server running on port ${port}`);
+    const ips = getLocalIpAddresses();
+    if (ips.length > 0) {
+      console.log(`Accessible on local network via: http://${ips[0]}:${port}`);
+    }
   });
 }
 

@@ -28,6 +28,8 @@ import {
   Shuffle,
   Award,
   Settings2,
+  Wifi,
+  Lock,
 } from 'lucide-react';
 
 interface TeacherDashboardProps {
@@ -43,7 +45,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   onExitTeacherMode,
   onOpenQuestionManager,
 }) => {
-  const [students, setStudents] = useState<StudentSession[]>([]);
+  const [students, setStudents] = useState<StudentSession[]>(() => syncService.getLocalStudents());
   const [settings, setSettings] = useState<ExamSettings>(() => syncService.getCachedSettings());
   const [activeTab, setActiveTab] = useState<'REKAP' | 'MONITOR' | 'QUESTIONS' | 'SETTINGS'>('REKAP');
   const [selectedClassFilter, setSelectedClassFilter] = useState<string>('ALL');
@@ -53,6 +55,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const [copiedUrl, setCopiedUrl] = useState<boolean>(false);
   const [copiedCode, setCopiedCode] = useState<boolean>(false);
   const [resettingId, setResettingId] = useState<string | null>(null);
+  const [serverIps, setServerIps] = useState<string[]>([]);
 
   // Form states for settings
   const [formExamCode, setFormExamCode] = useState<string>(settings?.examCode || 'PAS-1');
@@ -62,6 +65,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const [settingsSavedToast, setSettingsSavedToast] = useState<boolean>(false);
 
   useEffect(() => {
+    // Initial fetch
     syncService.fetchLatestSession().then((data) => {
       if (data?.students) {
         setStudents(data.students);
@@ -73,8 +77,12 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         setFormScorePerQuestion(data.settings.scorePerQuestion);
         setFormUseCombo(data.settings.useComboBonus);
       }
+      if (data?.serverIps) {
+        setServerIps(data.serverIps);
+      }
     });
 
+    // Real-time listener for WebSocket updates
     const unsubscribeStudents = syncService.onStudentsUpdate((updated) => {
       setStudents(updated);
     });
@@ -87,9 +95,22 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       setFormUseCombo(newSettings.useComboBonus);
     });
 
+    // Active live polling interval (every 2 seconds) to guarantee multi-device sync
+    const pollTimer = setInterval(() => {
+      syncService.fetchLatestSession().then((data) => {
+        if (data?.students) {
+          setStudents(data.students);
+        }
+        if (data?.serverIps) {
+          setServerIps(data.serverIps);
+        }
+      });
+    }, 2000);
+
     return () => {
       unsubscribeStudents();
       unsubscribeSettings();
+      clearInterval(pollTimer);
     };
   }, []);
 
@@ -132,10 +153,24 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     }
   };
 
-  const currentUrl = typeof window !== 'undefined' ? window.location.href : '';
+  const handleLockTeacherAccess = () => {
+    if (confirm('Kunci akses guru di perangkat ini? Anda harus memasukkan kode akses kembali saat ingin membuka menu guru.')) {
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem('skyquiz_teacher_authenticated');
+        localStorage.removeItem('skyquiz_teacher_access_token');
+        localStorage.removeItem('skyquiz_user_role');
+      }
+      onExitTeacherMode();
+    }
+  };
 
-  const handleCopyUrl = () => {
-    navigator.clipboard.writeText(currentUrl);
+  const currentUrl = typeof window !== 'undefined' ? window.location.origin : '';
+  const localNetworkUrl = serverIps.length > 0
+    ? `http://${serverIps[0]}:${typeof window !== 'undefined' ? window.location.port || '3000' : '3000'}`
+    : currentUrl;
+
+  const handleCopyUrl = (urlToCopy: string) => {
+    navigator.clipboard.writeText(urlToCopy);
     setCopiedUrl(true);
     setTimeout(() => setCopiedUrl(false), 2500);
   };
@@ -146,8 +181,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     setTimeout(() => setCopiedCode(false), 2000);
   };
 
-  const classList = Array.from(new Set(students.map((s) => s.studentClass).filter(Boolean)));
-  const examCodeList = Array.from(new Set(students.map((s) => s.examCode).filter(Boolean)));
+  const classList = Array.from(new Set(students.map((s) => s.studentClass).filter(Boolean))).sort();
+  const examCodeList = Array.from(new Set(students.map((s) => s.examCode).filter(Boolean))).sort();
 
   const filteredStudents = students.filter((s) => {
     const matchClass = selectedClassFilter === 'ALL' || s.studentClass === selectedClassFilter;
@@ -166,7 +201,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       ? Math.round(students.reduce((acc, curr) => acc + (curr.score || 0), 0) / totalStudents)
       : 0;
 
-  // Export Rekap ke Excel
+  // Export Rekap Nilai ke Excel
   const handleExportExcel = () => {
     if (filteredStudents.length === 0) {
       alert('Belum ada data siswa untuk diekspor!');
@@ -204,8 +239,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
     const worksheet = XLSX.utils.json_to_sheet(rows);
     const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Rekap_Ujian_Siswa');
-    XLSX.writeFile(workbook, `Rekap_Nilai_Ujian_SkyQuiz_${new Date().toISOString().slice(0, 10)}.xlsx`);
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Rekap_Nilai_Ujian');
+    XLSX.writeFile(workbook, `Rekap_Nilai_SkyQuiz_${settings.examCode}_${new Date().toISOString().slice(0, 10)}.xlsx`);
   };
 
   const handleExportCsv = () => {
@@ -225,7 +260,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.setAttribute('download', `Rekap_Nilai_Ujian_SkyQuiz_${new Date().toISOString().slice(0, 10)}.csv`);
+    link.setAttribute('download', `Rekap_Nilai_SkyQuiz_${new Date().toISOString().slice(0, 10)}.csv`);
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -250,14 +285,18 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       {/* Header Bar */}
       <header className="border-b border-slate-800/80 bg-slate-900/90 px-4 py-2.5 flex items-center justify-between sticky top-0 z-30 backdrop-blur-md">
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-sky-500/20 border border-sky-400/40 flex items-center justify-center text-sky-400">
-            <Plane className="w-4 h-4" />
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-amber-400 to-orange-400 flex items-center justify-center text-slate-950 shadow-md">
+            <Plane className="w-4 h-4 transform -rotate-45" />
           </div>
           <div>
             <div className="flex items-center gap-2">
               <span className="font-black text-sm tracking-tight text-white">SkyQuiz Host</span>
-              <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-800 text-sky-300 border border-slate-700 px-1.5 py-0.2 rounded">
-                Mode Guru
+              <span className="text-[10px] font-bold uppercase tracking-wider bg-slate-800 text-amber-300 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                Menu Guru
+              </span>
+              <span className="hidden sm:inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-[10px] text-emerald-300 font-bold">
+                <Wifi className="w-3 h-3 text-emerald-400 animate-pulse" />
+                <span>Online ({totalStudents} Siswa Terkoneksi)</span>
               </span>
             </div>
           </div>
@@ -269,7 +308,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           <button
             type="button"
             onClick={onLaunchSimulator}
-            className="px-2.5 py-1.5 rounded-lg bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border border-sky-400/30 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="px-2.5 py-1.5 rounded-xl bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border border-sky-400/30 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
             title="Buka simulator penerbangan 3D guru"
           >
             <Play className="w-3.5 h-3.5 fill-sky-300" />
@@ -280,32 +319,43 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           <button
             type="button"
             onClick={() => setShowQrModal(true)}
-            className="px-2.5 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
-            title="Tautkan Perangkat Siswa"
+            className="px-2.5 py-1.5 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-400/30 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+            title="Bagikan Tautan & QR Siswa"
           >
             <Share2 className="w-3.5 h-3.5 text-emerald-400" />
-            <span className="hidden sm:inline">QR Siswa</span>
+            <span>Bagikan QR Siswa</span>
           </button>
 
           {/* Reset All Session */}
           <button
             type="button"
             onClick={handleResetSession}
-            className="px-2.5 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
+            className="px-2.5 py-1.5 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border border-rose-500/30 text-xs font-semibold flex items-center gap-1.5 transition-colors cursor-pointer"
             title="Reset semua data ujian siswa"
           >
             <RotateCcw className="w-3.5 h-3.5 text-rose-400" />
-            <span className="hidden sm:inline">Reset Semua Siswa</span>
+            <span className="hidden sm:inline">Reset Sesi</span>
           </button>
 
-          {/* Exit / Switch */}
+          {/* Return to Main Menu (Keeps Passcode Saved) */}
           <button
             type="button"
             onClick={onExitTeacherMode}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
-            title="Ganti Peran"
+            className="px-2.5 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+            title="Kembali ke Menu Utama (Akses tetap tersimpan)"
           >
-            <LogOut className="w-4 h-4" />
+            <LogOut className="w-3.5 h-3.5" />
+            <span className="hidden sm:inline">Kembali</span>
+          </button>
+
+          {/* Explicit Lock / Logout Teacher */}
+          <button
+            type="button"
+            onClick={handleLockTeacherAccess}
+            className="p-1.5 rounded-xl text-slate-400 hover:text-amber-300 hover:bg-slate-800 transition-colors cursor-pointer"
+            title="Kunci Akses Guru (Logout perangkat ini)"
+          >
+            <Lock className="w-4 h-4" />
           </button>
         </div>
       </header>
@@ -321,19 +371,19 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
-                  Kode Ujian Otomatis:
+                  Kode Ujian Aktif:
                 </span>
                 <span className="font-mono text-base sm:text-lg font-black tracking-widest text-amber-300 bg-amber-400/15 border border-amber-400/40 px-3 py-0.5 rounded-lg">
                   {settings.examCode}
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                Siswa memasukkan kode ini untuk masuk. Pengaturan saat ini: Urutan Soal{' '}
+                Berikan kode ini kepada siswa. Urutan Soal:{' '}
                 <strong className={settings.shuffleQuestions ? 'text-emerald-400' : 'text-sky-300'}>
                   {settings.shuffleQuestions ? 'Diacak' : 'Berurutan'}
                 </strong>{' '}
                 • Nilai per Soal:{' '}
-                <strong className="text-amber-300">{settings.scorePerQuestion} Poin</strong> (Total Maks:{' '}
+                <strong className="text-amber-300">{settings.scorePerQuestion} Poin</strong> (Skor Maks:{' '}
                 {settings.scorePerQuestion * questions.length} Poin)
               </p>
             </div>
@@ -369,7 +419,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
               }`}
             >
               <Sliders className="w-3.5 h-3.5" />
-              <span>Pengaturan Soal & Skor</span>
+              <span>Pengaturan Ujian</span>
             </button>
           </div>
         </div>
@@ -378,7 +428,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
           <div className="bg-slate-900/60 border border-slate-800 rounded-xl p-3 flex items-center justify-between">
             <div>
-              <span className="text-[10px] text-slate-400 uppercase font-semibold block">Total Siswa</span>
+              <span className="text-[10px] text-slate-400 uppercase font-semibold block">Total Siswa Terdata</span>
               <span className="text-xl font-black text-white">{totalStudents}</span>
             </div>
             <Users className="w-4 h-4 text-sky-400" />
@@ -409,7 +459,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           </div>
         </div>
 
-        {/* Minimalist Tab Bar & Grouping Toolbar */}
+        {/* Tab Bar & Action Toolbar */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-2.5 bg-slate-900/70 border border-slate-800/80 p-2.5 rounded-xl">
           <div className="flex flex-wrap items-center gap-1">
             <button
@@ -417,12 +467,12 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
               onClick={() => setActiveTab('REKAP')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'REKAP'
-                  ? 'bg-sky-500 text-slate-950'
+                  ? 'bg-sky-500 text-slate-950 font-black'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800'
               }`}
             >
               <FileSpreadsheet className="w-3.5 h-3.5" />
-              <span>Rekap Jawaban ({filteredStudents.length})</span>
+              <span>Rekap Nilai Siswa ({filteredStudents.length})</span>
             </button>
 
             <button
@@ -430,7 +480,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
               onClick={() => setActiveTab('MONITOR')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'MONITOR'
-                  ? 'bg-sky-500 text-slate-950'
+                  ? 'bg-sky-500 text-slate-950 font-black'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800'
               }`}
             >
@@ -443,7 +493,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
               onClick={() => setActiveTab('QUESTIONS')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'QUESTIONS'
-                  ? 'bg-sky-500 text-slate-950'
+                  ? 'bg-sky-500 text-slate-950 font-black'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800'
               }`}
             >
@@ -456,7 +506,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
               onClick={() => setActiveTab('SETTINGS')}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'SETTINGS'
-                  ? 'bg-sky-500 text-slate-950'
+                  ? 'bg-sky-500 text-slate-950 font-black'
                   : 'text-slate-400 hover:text-white hover:bg-slate-800'
               }`}
             >
@@ -500,7 +550,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                   <Search className="w-3 h-3 text-slate-400 absolute left-2 top-2.5" />
                   <input
                     type="text"
-                    placeholder="Cari siswa/kode..."
+                    placeholder="Cari nama siswa..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
                     className="bg-slate-800 border border-slate-700 text-xs rounded-lg pl-6 pr-2.5 py-1 text-white placeholder-slate-500 focus:outline-none w-28 sm:w-36"
@@ -511,10 +561,10 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                   type="button"
                   onClick={handleExportExcel}
                   className="px-2.5 py-1.5 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 rounded-lg text-xs font-bold flex items-center gap-1 transition-colors cursor-pointer"
-                  title="Unduh Excel (.xlsx)"
+                  title="Unduh Rekap Nilai ke Excel (.xlsx)"
                 >
                   <Download className="w-3 h-3" />
-                  <span>Excel</span>
+                  <span>Unduh Excel</span>
                 </button>
 
                 <button
@@ -541,7 +591,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           </div>
         </div>
 
-        {/* Tab 1: REKAP JAWABAN SISWA */}
+        {/* Tab 1: REKAP NILAI & JAWABAN SISWA */}
         {activeTab === 'REKAP' && (
           <div className="bg-slate-900/80 border border-slate-800/80 rounded-2xl overflow-hidden shadow-lg">
             <div className="overflow-x-auto">
@@ -553,7 +603,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                     <th className="py-2.5 px-3">Kelas</th>
                     <th className="py-2.5 px-3">Kode Ujian</th>
                     <th className="py-2.5 px-3 text-center">Pesawat</th>
-                    <th className="py-2.5 px-3 text-center">Skor</th>
+                    <th className="py-2.5 px-3 text-center">Skor Akhir</th>
                     <th className="py-2.5 px-3 text-center">Akurasi</th>
                     {questions.map((_, idx) => (
                       <th key={idx} className="py-2.5 px-2 text-center w-14">
@@ -569,7 +619,10 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                     <tr>
                       <td colSpan={9 + questions.length} className="text-center py-10 text-slate-500">
                         <Users className="w-8 h-8 mx-auto mb-1.5 opacity-40" />
-                        <p className="text-xs">Belum ada siswa yang terdata pada filter ini</p>
+                        <p className="text-xs">Belum ada siswa yang mengerjakan ujian pada filter ini.</p>
+                        <p className="text-[11px] text-slate-600 mt-1">
+                          Bagikan tautan atau scan QR code kepada siswa di smartphone/laptop mereka untuk memulai.
+                        </p>
                       </td>
                     </tr>
                   ) : (
@@ -641,8 +694,8 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                                 Selesai (1x)
                               </span>
                             ) : (
-                              <span className="text-[10px] text-sky-400 font-semibold bg-sky-500/10 px-2 py-0.5 rounded border border-sky-500/30 animate-pulse">
-                                Terbang
+                              <span className="text-[10px] text-sky-400 font-semibold bg-sky-500/10 px-2 py-0.5 rounded border border-sky-500/30">
+                                Terbang (U{(s.currentQuestionIndex || 0) + 1})
                               </span>
                             )}
                           </td>
@@ -652,11 +705,10 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                               type="button"
                               disabled={resettingId === s.id}
                               onClick={() => handleResetSingleStudent(s.id, s.name)}
-                              className="px-2 py-1 rounded-lg bg-amber-500/10 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 text-[10px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer mx-auto"
-                              title="Reset siswa ini agar bisa bermain & mengerjakan ujian lagi"
+                              className="px-2 py-1 rounded bg-amber-500/15 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-[10px] font-bold transition-colors cursor-pointer"
+                              title="Izinkan siswa bermain kembali"
                             >
-                              <RotateCcw className={`w-3 h-3 ${resettingId === s.id ? 'animate-spin' : ''}`} />
-                              <span>Reset Siswa</span>
+                              Reset Siswa
                             </button>
                           </td>
                         </tr>
@@ -671,64 +723,48 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
         {/* Tab 2: LIVE MONITOR */}
         {activeTab === 'MONITOR' && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2.5">
-            {students.length === 0 ? (
-              <div className="col-span-full py-12 text-center text-slate-500">
-                Belum ada siswa aktif.
-              </div>
-            ) : (
-              students.map((s) => {
-                const currentQ = s.answers.length;
-                const isDone = s.status === 'COMPLETED';
+          <div className="space-y-3">
+            <div className="bg-slate-900/80 border border-slate-800 rounded-2xl p-4">
+              <h3 className="text-sm font-bold text-white mb-2 flex items-center gap-2">
+                <Users className="w-4 h-4 text-sky-400" />
+                <span>Status Siswa Secara Real-Time</span>
+              </h3>
+              <p className="text-xs text-slate-400 mb-4">
+                Tampilan proyektor guru: Pantau posisi dan skor siswa secara live dari seluruh perangkat.
+              </p>
 
-                return (
-                  <div
-                    key={s.id}
-                    className="bg-slate-900/80 border border-slate-800 rounded-xl p-3 space-y-2.5"
-                  >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        {renderVehicleIcon(s.aircraftType)}
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                {students.length === 0 ? (
+                  <div className="col-span-full text-center py-8 text-slate-500 text-xs">
+                    Belum ada siswa yang bergabung dalam sesi.
+                  </div>
+                ) : (
+                  students.map((s) => (
+                    <div
+                      key={s.id}
+                      className="p-3 rounded-xl bg-slate-950/70 border border-slate-800 flex items-center justify-between"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <div className="p-2 rounded-lg bg-slate-900 border border-slate-700">
+                          {renderVehicleIcon(s.aircraftType)}
+                        </div>
                         <div>
-                          <h4 className="font-bold text-xs text-white leading-tight">{s.name}</h4>
-                          <span className="text-[10px] text-slate-400">
-                            Kelas {s.studentClass} • <strong className="text-amber-300">{s.examCode || settings.examCode}</strong>
-                          </span>
+                          <div className="text-xs font-bold text-white">{s.name}</div>
+                          <div className="text-[10px] text-slate-400">Kelas {s.studentClass} • {s.examCode}</div>
                         </div>
                       </div>
-                      <span className="text-xs font-black text-amber-300">{s.score} pts</span>
+
+                      <div className="text-right">
+                        <div className="text-xs font-black text-amber-300">{s.score} pts</div>
+                        <span className={`text-[10px] font-bold ${s.status === 'COMPLETED' ? 'text-emerald-400' : 'text-sky-400'}`}>
+                          {s.status === 'COMPLETED' ? '✓ Selesai' : `Soal ${(s.currentQuestionIndex || 0) + 1}/${questions.length}`}
+                        </span>
+                      </div>
                     </div>
-
-                    <div className="flex items-center gap-1">
-                      {questions.map((_, idx) => {
-                        const ans = s.answers[idx];
-                        let bg = 'bg-slate-800';
-                        if (ans) bg = ans.isCorrect ? 'bg-emerald-400' : 'bg-rose-400';
-                        else if (idx === currentQ) bg = 'bg-sky-400 animate-pulse';
-
-                        return <div key={idx} className={`h-1.5 flex-1 rounded-full ${bg}`} />;
-                      })}
-                    </div>
-
-                    <div className="flex items-center justify-between pt-1 border-t border-slate-800/80">
-                      <span className={`text-[10px] font-bold ${isDone ? 'text-emerald-400' : 'text-sky-400'}`}>
-                        {isDone ? '✓ Selesai Ujian' : `Soal ${currentQ + 1} / ${questions.length}`}
-                      </span>
-
-                      <button
-                        type="button"
-                        onClick={() => handleResetSingleStudent(s.id, s.name)}
-                        className="px-2 py-0.5 rounded bg-amber-500/10 hover:bg-amber-500/25 text-amber-300 text-[10px] font-bold flex items-center gap-1 border border-amber-500/30 transition-colors cursor-pointer"
-                        title="Reset siswa ini agar bisa mengulang ujian"
-                      >
-                        <RotateCcw className="w-2.5 h-2.5" />
-                        <span>Reset Siswa</span>
-                      </button>
-                    </div>
-                  </div>
-                );
-              })
-            )}
+                  ))
+                )}
+              </div>
+            </div>
           </div>
         )}
 
@@ -947,32 +983,60 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       {showQrModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
           <div className="bg-slate-900 border border-slate-800 rounded-2xl max-w-sm w-full p-5 text-white text-center shadow-2xl">
-            <h3 className="text-sm font-black mb-1">Pindai untuk Bergabung</h3>
-            <p className="text-[11px] text-slate-400 mb-2">Siswa memindai QR code ini di ponsel/tablet</p>
+            <h3 className="text-base font-black mb-1">Pindai untuk Mulai Ujian</h3>
+            <p className="text-xs text-slate-300 mb-2">
+              Siswa membuka tautan ini di HP atau Laptop masing-masing
+            </p>
 
             <div className="bg-amber-400/15 border border-amber-400/30 text-amber-300 text-xs font-mono font-bold py-1.5 px-3 rounded-lg mb-3">
               Kode Ujian: <strong>{settings.examCode}</strong>
             </div>
 
             <div className="bg-white p-3 rounded-xl inline-block shadow-lg">
-              <QRCodeSVG value={currentUrl} size={180} level="M" />
+              <QRCodeSVG value={localNetworkUrl} size={190} level="M" />
             </div>
 
-            <div className="mt-3 p-2 bg-slate-950 rounded-lg border border-slate-800 flex items-center justify-between text-[11px] text-sky-300 font-mono">
-              <span className="truncate max-w-[200px]">{currentUrl}</span>
-              <button
-                type="button"
-                onClick={handleCopyUrl}
-                className="p-1 text-slate-400 hover:text-white cursor-pointer"
-              >
-                {copiedUrl ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
-              </button>
+            <div className="mt-3.5 space-y-2 text-left">
+              <div>
+                <label className="text-[10px] text-slate-400 uppercase font-bold block mb-1">
+                  Tautan Browser Siswa:
+                </label>
+                <div className="p-2 bg-slate-950 rounded-lg border border-slate-800 flex items-center justify-between text-xs text-sky-300 font-mono">
+                  <span className="truncate max-w-[210px]">{localNetworkUrl}</span>
+                  <button
+                    type="button"
+                    onClick={() => handleCopyUrl(localNetworkUrl)}
+                    className="p-1 text-slate-400 hover:text-white cursor-pointer ml-1"
+                    title="Salin Tautan"
+                  >
+                    {copiedUrl ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {localNetworkUrl !== currentUrl && (
+                <div>
+                  <label className="text-[10px] text-slate-400 uppercase font-bold block mb-1">
+                    Tautan Alternatif (Internet/Domain):
+                  </label>
+                  <div className="p-2 bg-slate-950 rounded-lg border border-slate-800 flex items-center justify-between text-xs text-slate-300 font-mono">
+                    <span className="truncate max-w-[210px]">{currentUrl}</span>
+                    <button
+                      type="button"
+                      onClick={() => handleCopyUrl(currentUrl)}
+                      className="p-1 text-slate-400 hover:text-white cursor-pointer ml-1"
+                    >
+                      <Copy className="w-4 h-4" />
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             <button
               type="button"
               onClick={() => setShowQrModal(false)}
-              className="mt-3 w-full py-1.5 bg-slate-800 hover:bg-slate-700 text-xs font-bold rounded-lg cursor-pointer"
+              className="mt-4 w-full py-2 bg-slate-800 hover:bg-slate-700 text-xs font-bold rounded-xl cursor-pointer transition-colors"
             >
               Tutup
             </button>
