@@ -25,6 +25,33 @@ function shuffleArray<T>(array: T[]): T[] {
   }
   return arr;
 }
+function safeGetItem(key: string): string | null {
+  try {
+    return typeof localStorage !== 'undefined' ? localStorage.getItem(key) : null;
+  } catch {
+    return null;
+  }
+}
+
+function safeSetItem(key: string, value: string): void {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.setItem(key, value);
+    }
+  } catch {
+    // Ignore storage quota or access errors
+  }
+}
+
+function safeRemoveItem(key: string): void {
+  try {
+    if (typeof localStorage !== 'undefined') {
+      localStorage.removeItem(key);
+    }
+  } catch {
+    // Ignore storage errors
+  }
+}
 
 export default function App() {
   const canvasMountRef = useRef<HTMLDivElement>(null);
@@ -32,10 +59,10 @@ export default function App() {
 
   // User Role State
   const [userRole, setUserRole] = useState<UserRole | null>(() => {
-    return (localStorage.getItem('skyquiz_user_role') as UserRole) || null;
+    return (safeGetItem('skyquiz_user_role') as UserRole) || null;
   });
   const [showRoleSelectModal, setShowRoleSelectModal] = useState<boolean>(() => {
-    return !localStorage.getItem('skyquiz_user_role');
+    return !safeGetItem('skyquiz_user_role');
   });
 
   // Simulator mode flag (when teacher tests flight)
@@ -43,25 +70,25 @@ export default function App() {
 
   // Student Identity
   const [studentName, setStudentName] = useState<string>(() => {
-    return localStorage.getItem('skyquiz_student_name') || '';
+    return safeGetItem('skyquiz_student_name') || '';
   });
   const [studentClass, setStudentClass] = useState<string>(() => {
-    return localStorage.getItem('skyquiz_student_class') || '';
+    return safeGetItem('skyquiz_student_class') || '';
   });
   const [examCode, setExamCode] = useState<string>(() => {
-    return localStorage.getItem('skyquiz_exam_code') || 'PAS-1';
+    return safeGetItem('skyquiz_exam_code') || 'PAS-1';
   });
   const [studentId, setStudentId] = useState<string | null>(() => {
-    return localStorage.getItem('skyquiz_student_id') || null;
+    return safeGetItem('skyquiz_student_id') || null;
   });
 
   // 1-Play Only Constraint for Students: track if student already completed exam
   const [hasCompletedExam, setHasCompletedExam] = useState<boolean>(() => {
-    const sid = localStorage.getItem('skyquiz_student_id');
-    if (sid && localStorage.getItem(`skyquiz_student_completed_${sid}`) === 'true') {
+    const sid = safeGetItem('skyquiz_student_id');
+    if (sid && safeGetItem(`skyquiz_student_completed_${sid}`) === 'true') {
       return true;
     }
-    return localStorage.getItem('skyquiz_student_completed') === 'true';
+    return safeGetItem('skyquiz_student_completed') === 'true';
   });
 
   // Questions & Topic (Soal Ujian)
@@ -124,12 +151,12 @@ export default function App() {
         }
       }
       // Check if current student is already completed on server
-      const currentSid = studentId || localStorage.getItem('skyquiz_student_id');
+      const currentSid = studentId || safeGetItem('skyquiz_student_id');
       if (currentSid && data?.students) {
         const found = data.students.find((s) => s.id === currentSid);
         if (found?.status === 'COMPLETED') {
           setHasCompletedExam(true);
-          localStorage.setItem(`skyquiz_student_completed_${currentSid}`, 'true');
+          safeSetItem(`skyquiz_student_completed_${currentSid}`, 'true');
         }
       }
     });
@@ -148,24 +175,24 @@ export default function App() {
 
     // Listen to single student reset from teacher
     const unsubscribeStudentReset = syncService.onStudentReset((resetSid) => {
-      const currentSid = studentId || localStorage.getItem('skyquiz_student_id');
+      const currentSid = studentId || safeGetItem('skyquiz_student_id');
       if (resetSid === currentSid || !currentSid) {
         setHasCompletedExam(false);
         if (currentSid) {
-          localStorage.removeItem(`skyquiz_student_completed_${currentSid}`);
+          safeRemoveItem(`skyquiz_student_completed_${currentSid}`);
         }
-        localStorage.removeItem('skyquiz_student_completed');
+        safeRemoveItem('skyquiz_student_completed');
       }
     });
 
     // Listen to session-wide reset from teacher
     const unsubscribeSessionReset = syncService.onSessionReset(() => {
       setHasCompletedExam(false);
-      const currentSid = studentId || localStorage.getItem('skyquiz_student_id');
+      const currentSid = studentId || safeGetItem('skyquiz_student_id');
       if (currentSid) {
-        localStorage.removeItem(`skyquiz_student_completed_${currentSid}`);
+        safeRemoveItem(`skyquiz_student_completed_${currentSid}`);
       }
-      localStorage.removeItem('skyquiz_student_completed');
+      safeRemoveItem('skyquiz_student_completed');
     });
 
     return () => {
@@ -178,7 +205,7 @@ export default function App() {
 
   const handleSelectRole = (role: UserRole) => {
     setUserRole(role);
-    localStorage.setItem('skyquiz_user_role', role);
+    safeSetItem('skyquiz_user_role', role);
     setShowRoleSelectModal(false);
   };
 
@@ -204,16 +231,16 @@ export default function App() {
 
     // Save Student Identity if actual student
     if (!forSimulator && userRole === 'STUDENT') {
-      localStorage.setItem('skyquiz_student_name', studentName);
-      localStorage.setItem('skyquiz_student_class', studentClass);
-      localStorage.setItem('skyquiz_exam_code', examCode);
+      safeSetItem('skyquiz_student_name', studentName);
+      safeSetItem('skyquiz_student_class', studentClass);
+      safeSetItem('skyquiz_exam_code', examCode);
 
       const joinRes = await syncService.joinAsStudent(studentName, studentClass, selectedAircraftType, examCode);
       if (joinRes?.student?.id) {
         setStudentId(joinRes.student.id);
         if (joinRes.isCompleted) {
           setHasCompletedExam(true);
-          localStorage.setItem(`skyquiz_student_completed_${joinRes.student.id}`, 'true');
+          safeSetItem(`skyquiz_student_completed_${joinRes.student.id}`, 'true');
           alert('Anda sudah menyelesaikan ujian ini sebelumnya. Minta guru mereset jika ingin mengulang.');
           return;
         }
@@ -252,7 +279,7 @@ export default function App() {
           setActiveQuizModal(null);
 
           if (!forSimulator && userRole === 'STUDENT') {
-            const currentSid = studentId || localStorage.getItem('skyquiz_student_id');
+            const currentSid = studentId || safeGetItem('skyquiz_student_id');
             if (currentSid) {
               syncService.updateProgress(currentSid, idx, score, combo, 'PLAYING');
             }
@@ -283,12 +310,12 @@ export default function App() {
           // Mark exam as completed for student - 1-Play only rule!
           if (!forSimulator && userRole === 'STUDENT') {
             setHasCompletedExam(true);
-            const currentSid = studentId || localStorage.getItem('skyquiz_student_id');
+            const currentSid = studentId || safeGetItem('skyquiz_student_id');
             if (currentSid) {
-              localStorage.setItem(`skyquiz_student_completed_${currentSid}`, 'true');
+              safeSetItem(`skyquiz_student_completed_${currentSid}`, 'true');
               syncService.updateProgress(currentSid, activeQuestions.length, finalScore, highestCombo, 'COMPLETED');
             }
-            localStorage.setItem('skyquiz_student_completed', 'true');
+            safeSetItem('skyquiz_student_completed', 'true');
           }
         },
         onSpeedUpdate: (spd) => {
@@ -327,7 +354,7 @@ export default function App() {
 
     // Only sync real student answers to Teacher Gradebook
     if (!isSimulatorMode && userRole === 'STUDENT') {
-      const currentSid = studentId || localStorage.getItem('skyquiz_student_id');
+      const currentSid = studentId || safeGetItem('skyquiz_student_id');
       if (currentSid && currentQuestion) {
         const chosenText = currentQuestion.options[selectedIndex] || '';
         const correctText = currentQuestion.options[currentQuestion.correctIndex] || '';

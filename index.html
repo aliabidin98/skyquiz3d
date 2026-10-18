@@ -1,20 +1,135 @@
 <!doctype html>
-<html lang="en">
+<html lang="id">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <title>SkyQuiz 3D - Game Edukasi Pesawat Terbang</title>
-    <meta name="description" content="Game edukasi 3D interaktif di mana siswa mengendalikan pesawat terbang untuk melintasi gerbang jawaban yang benar di udara dengan lingkungan pemandangan yang indah." />
+    <meta name="description" content="Game edukasi 3D interaktif di mana siswa mengendalikan pesawat terbang untuk melintasi gerbang jawaban yang benar di udara dengan pemandangan 3D yang imersif." />
     <meta property="og:title" content="SkyQuiz 3D - Game Edukasi Pesawat Terbang" />
-    <meta property="og:description" content="Game edukasi 3D interaktif di mana siswa mengendalikan pesawat terbang untuk melintasi gerbang jawaban yang benar di udara dengan lingkungan pemandangan yang indah." />
+    <meta property="og:description" content="Game edukasi 3D interaktif di mana siswa mengendalikan pesawat terbang untuk melintasi gerbang jawaban yang benar di udara dengan pemandangan 3D yang imersif." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
+
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Fredoka:wght@500;600;700&display=swap" rel="stylesheet">
+
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        background-color: #020617;
+        color: #f8fafc;
+        overflow: hidden;
+        font-family: 'Plus Jakarta Sans', system-ui, -apple-system, sans-serif;
+      }
+      #initial-loader {
+        position: fixed;
+        inset: 0;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        background: radial-gradient(circle at center, #0f172a 0%, #020617 100%);
+        z-index: 99999;
+        text-align: center;
+        padding: 24px;
+        box-sizing: border-box;
+      }
+      .plane-spinner {
+        width: 68px;
+        height: 68px;
+        border-radius: 20px;
+        background: linear-gradient(135deg, #38bdf8, #10b981);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        box-shadow: 0 10px 25px -5px rgba(56, 189, 248, 0.4);
+        animation: floatPulse 2s ease-in-out infinite;
+        margin-bottom: 20px;
+      }
+      .plane-spinner svg {
+        width: 38px;
+        height: 38px;
+        fill: none;
+        stroke: #020617;
+        stroke-width: 2.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        transform: rotate(-45deg);
+      }
+      @keyframes floatPulse {
+        0%, 100% { transform: translateY(0) scale(1); }
+        50% { transform: translateY(-8px) scale(1.05); }
+      }
+      .load-bar {
+        width: 180px;
+        height: 5px;
+        background: #1e293b;
+        border-radius: 9999px;
+        overflow: hidden;
+        margin-top: 18px;
+        position: relative;
+      }
+      .load-bar::after {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        bottom: 0;
+        width: 40%;
+        background: linear-gradient(90deg, #38bdf8, #34d399);
+        border-radius: 9999px;
+        animation: loadSlide 1.4s ease-in-out infinite;
+      }
+      @keyframes loadSlide {
+        0% { left: -40%; width: 40%; }
+        50% { width: 60%; }
+        100% { left: 100%; width: 40%; }
+      }
+    </style>
+
+    <script>
+      // Automatically redirect to trailing slash if opened on GitHub Pages sub-directory without '/'
+      // e.g. https://username.github.io/skyquiz3d -> https://username.github.io/skyquiz3d/
+      (function() {
+        if (location.protocol === 'file:') {
+          window.addEventListener('DOMContentLoaded', function() {
+            var el = document.getElementById('initial-loader');
+            if (el) {
+              el.innerHTML = '<div style="max-width:440px;background:#0f172a;border:1px solid #f43f5e;border-radius:20px;padding:24px;color:#fecdd3;box-shadow:0 20px 25px -5px rgba(0,0,0,0.5);"><h2 style="margin:0 0 10px 0;color:#fda4af;font-size:18px;font-weight:800;">Buka Menggunakan Web Server</h2><p style="font-size:13px;line-height:1.6;margin:0 0 16px 0;color:#cbd5e1;">Aplikasi SkyQuiz 3D berbasis modul ES modern dan Three.js, sehingga tidak dapat dibuka langsung melalui double-click berkas lokal (file:///).</p><p style="font-size:12px;background:#1e293b;padding:12px;border-radius:12px;color:#38bdf8;margin:0;font-family:monospace;">Silakan deploy via GitHub Pages atau jalankan: npm run preview</p></div>';
+            }
+          });
+          return;
+        }
+
+        var path = window.location.pathname;
+        if (path && !path.endsWith('/') && !path.slice(-5).includes('.')) {
+          window.location.replace(window.location.origin + path + '/' + window.location.search + window.location.hash);
+        }
+      })();
+    </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <!-- High-performance inline splash screen (replaced cleanly when React mounts) -->
+      <div id="initial-loader">
+        <div class="plane-spinner">
+          <svg viewBox="0 0 24 24">
+            <path d="M17.8 19.2 16 11l3.5-3.5C21 6 21.5 4 21 3c-1-.5-3 0-4.5 1.5L13 8 4.8 6.2c-.5-.1-.9.1-1.1.5l-.3.5c-.2.5-.1 1 .3 1.3L9 12l-2 3H4l-1 1 3 2 2 3 1-1v-3l3-2 3.5 5.3c.3.4.8.5 1.3.3l.5-.2c.4-.3.6-.7.5-1.2z"/>
+          </svg>
+        </div>
+        <div style="font-size: 22px; font-weight: 900; letter-spacing: -0.5px; background: linear-gradient(to right, #38bdf8, #34d399, #fde047); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+          SkyQuiz 3D
+        </div>
+        <div style="font-size: 13px; color: #94a3b8; font-weight: 600; margin-top: 6px;">
+          Memuat simulasi penerbangan & soal kuis...
+        </div>
+        <div class="load-bar"></div>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

@@ -3,23 +3,29 @@
   <head>
     <meta charset="utf-8">
     <title>SkyQuiz 3D - Mengalihkan...</title>
+    <style>
+      body {
+        margin: 0;
+        background-color: #020617;
+        color: #f8fafc;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100vh;
+        font-family: system-ui, -apple-system, sans-serif;
+      }
+    </style>
     <script>
-      // Single Page App redirect for GitHub Pages
-      // Preserves paths and query parameters
-      const segmentCount = 1;
-      const location = window.location;
-      location.replace(
-        location.protocol + '//' + location.hostname + (location.port ? ':' + location.port : '') +
-        location.pathname.split('/').slice(0, 1 + segmentCount).join('/') + '/?p=/' +
-        location.pathname.slice(1).split('/').slice(segmentCount).join('/').replace(/&/g, '~and~') +
-        (location.search ? '&q=' + location.search.slice(1).replace(/&/g, '~and~') : '') +
-        location.hash
-      );
+      // Clean redirect back to the app home page preserving any parameters
+      var repoSegments = location.pathname.split('/').filter(Boolean);
+      var targetPath = '/';
+      if (location.hostname.endsWith('github.io') && repoSegments.length > 0) {
+        targetPath = '/' + repoSegments[0] + '/';
+      }
+      location.replace(location.origin + targetPath + location.search + location.hash);
     </script>
   </head>
   <body>
-    <p style="text-align:center; font-family:sans-serif; margin-top:50px;">
-      Memuat SkyQuiz 3D...
-    </p>
+    <p>Mengalihkan ke SkyQuiz 3D...</p>
   </body>
 </html>
