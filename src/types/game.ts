@@ -67,6 +67,11 @@ export interface ExamSettings {
   shuffleQuestions: boolean;
   scorePerQuestion: number;
   useComboBonus: boolean;
+  gasWebAppUrl?: string; // Google Apps Script Web App URL for storing student exam data
+  autoSyncToSheets?: boolean; // Automatically push student completion to Google Sheet
+  googleSheetQuestionsUrl?: string; // Google Sheet URL for quiz question sourcing
+  lastSheetsSyncTime?: number;
+  lastSheetsSyncStatus?: string;
 }
 
 

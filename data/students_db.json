@@ -1,10 +1,88 @@
 {
-  "sessions": [],
+  "sessions": [
+    {
+      "id": "std-1792293293168-715",
+      "name": "A",
+      "studentClass": "8",
+      "examCode": "VCP-776",
+      "aircraftType": "HELICOPTER",
+      "score": 100,
+      "combo": 5,
+      "maxCombo": 5,
+      "currentQuestionIndex": 5,
+      "totalQuestions": 5,
+      "status": "COMPLETED",
+      "answers": [
+        {
+          "questionId": "soal-1",
+          "questionIndex": 0,
+          "questionText": "Organ tubuh manusia yang berfungsi utama memompa darah kaya oksigen ke seluruh bagian tubuh melalui sistem peredaran darah adalah?",
+          "selectedOption": "Jantung",
+          "correctOption": "Jantung",
+          "isCorrect": true,
+          "scoreGained": 20,
+          "timeSpentSec": 0,
+          "answeredAt": 1792315980320
+        },
+        {
+          "questionId": "soal-2",
+          "questionIndex": 1,
+          "questionText": "Berapakah hasil akhir dari perhitungan operasi matematika campuran berikut ini: (15 × 4) + 25?",
+          "selectedOption": "85",
+          "correctOption": "85",
+          "isCorrect": true,
+          "scoreGained": 20,
+          "timeSpentSec": 0,
+          "answeredAt": 1792315993309
+        },
+        {
+          "questionId": "soal-3",
+          "questionIndex": 2,
+          "questionText": "Dalam kalimat bahasa Inggris: \"The brilliant student solved the complex physics problem very quickly\", kata yang bersinonim paling tepat dengan \"BRILLIANT\" adalah?",
+          "selectedOption": "Clever, smart, and highly intelligent",
+          "correctOption": "Clever, smart, and highly intelligent",
+          "isCorrect": true,
+          "scoreGained": 20,
+          "timeSpentSec": 0,
+          "answeredAt": 1792316005790
+        },
+        {
+          "questionId": "soal-4",
+          "questionIndex": 3,
+          "questionText": "Danau vulkanik dan tektonik terbesar di Indonesia sekaligus merupakan danau vulkanik terbesar di Asia Tenggara adalah?",
+          "selectedOption": "Danau Toba",
+          "correctOption": "Danau Toba",
+          "isCorrect": true,
+          "scoreGained": 20,
+          "timeSpentSec": 0,
+          "answeredAt": 1792316016364
+        },
+        {
+          "questionId": "soal-5",
+          "questionIndex": 4,
+          "questionText": "Planet apakah yang memiliki ukuran diameter serta volume fisik paling besar di dalam sistem tata surya kita?",
+          "selectedOption": "Jupiter",
+          "correctOption": "Jupiter",
+          "isCorrect": true,
+          "scoreGained": 20,
+          "timeSpentSec": 0,
+          "answeredAt": 1792316027515
+        }
+      ],
+      "joinedAt": 1792315965422,
+      "lastUpdated": 1792316029264
+    }
+  ],
   "settings": {
     "examCode": "DBZ-378",
     "shuffleQuestions": false,
     "scorePerQuestion": 20,
-    "useComboBonus": false
+    "useComboBonus": false,
+    "gasWebAppUrl": "",
+    "autoSyncToSheets": true,
+    "googleSheetQuestionsUrl": "",
+    "lastSheetsSyncTime": 0,
+    "lastSheetsSyncStatus": ""
   },
   "questions": [
     {
@@ -68,5 +146,5 @@
       "explanation": "Jupiter adalah planet gas raksasa terbesar di tata surya dengan massa lebih dari dua kali lipat gabungan seluruh planet lainnya."
     }
   ],
-  "savedAt": 1792315404163
+  "savedAt": 1792428637070
 }

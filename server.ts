@@ -91,6 +91,11 @@ export interface ExamSettings {
   shuffleQuestions: boolean;
   scorePerQuestion: number;
   useComboBonus: boolean;
+  gasWebAppUrl?: string;
+  autoSyncToSheets?: boolean;
+  googleSheetQuestionsUrl?: string;
+  lastSheetsSyncTime?: number;
+  lastSheetsSyncStatus?: string;
 }
 
 function generateRandomExamCode(): string {
@@ -106,7 +111,45 @@ let activeSettings: ExamSettings = {
   shuffleQuestions: false,
   scorePerQuestion: 20,
   useComboBonus: false,
+  gasWebAppUrl: '',
+  autoSyncToSheets: true,
+  googleSheetQuestionsUrl: '',
+  lastSheetsSyncTime: 0,
+  lastSheetsSyncStatus: '',
 };
+
+// Automatic background push to Google Apps Script Web App when student completes exam
+async function syncStudentToGas(student: StudentSession) {
+  if (!activeSettings.gasWebAppUrl || activeSettings.autoSyncToSheets === false) return;
+  try {
+    const targetUrl = activeSettings.gasWebAppUrl.trim();
+    if (!targetUrl.startsWith('http')) return;
+    
+    // We send payload to GAS Web App (supports doPost)
+    const payload = {
+      action: 'syncStudent',
+      examCode: activeSettings.examCode,
+      student,
+      timestamp: Date.now(),
+    };
+
+    fetch(targetUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    }).then(async (res) => {
+      console.log(`[GAS Auto-Sync] Saved student ${student.name} to Google Sheet. HTTP status: ${res.status}`);
+      activeSettings.lastSheetsSyncTime = Date.now();
+      activeSettings.lastSheetsSyncStatus = `Tersimpan: ${student.name}`;
+      saveDatabaseToDisk();
+      broadcast({ type: 'settings:updated', settings: activeSettings });
+    }).catch((err) => {
+      console.warn(`[GAS Auto-Sync] Warning sending to Google Sheet:`, err?.message || err);
+    });
+  } catch (err) {
+    console.warn('[GAS Auto-Sync] Catch error:', err);
+  }
+}
 
 const DATA_DIR = path.resolve(__dirname, 'data');
 const DATA_FILE = path.join(DATA_DIR, 'students_db.json');
@@ -373,7 +416,11 @@ app.post('/api/student/answer', (req, res) => {
   }
 
   if (student.answers.length >= activeQuestions.length) {
+    const wasAlreadyCompleted = student.status === 'COMPLETED';
     student.status = 'COMPLETED';
+    if (!wasAlreadyCompleted) {
+      syncStudentToGas(student);
+    }
   } else {
     student.status = 'PLAYING';
   }
@@ -491,11 +538,335 @@ app.post('/api/teacher/update-settings', (req, res) => {
     if (typeof settings.useComboBonus === 'boolean') {
       activeSettings.useComboBonus = settings.useComboBonus;
     }
+    if (typeof settings.gasWebAppUrl === 'string') {
+      activeSettings.gasWebAppUrl = settings.gasWebAppUrl.trim();
+    }
+    if (typeof settings.autoSyncToSheets === 'boolean') {
+      activeSettings.autoSyncToSheets = settings.autoSyncToSheets;
+    }
+    if (typeof settings.googleSheetQuestionsUrl === 'string') {
+      activeSettings.googleSheetQuestionsUrl = settings.googleSheetQuestionsUrl.trim();
+    }
+    if (typeof settings.lastSheetsSyncTime === 'number') {
+      activeSettings.lastSheetsSyncTime = settings.lastSheetsSyncTime;
+    }
+    if (typeof settings.lastSheetsSyncStatus === 'string') {
+      activeSettings.lastSheetsSyncStatus = settings.lastSheetsSyncStatus;
+    }
   }
 
   saveDatabaseToDisk();
   broadcast({ type: 'settings:updated', settings: activeSettings });
   res.json({ success: true, settings: activeSettings });
+});
+
+// ==========================================
+// GOOGLE SHEETS & GOOGLE APPS SCRIPT API
+// ==========================================
+
+function parseCsvRows(csvText: string): string[][] {
+  const rows: string[][] = [];
+  let currentRow: string[] = [];
+  let currentField = '';
+  let insideQuote = false;
+
+  for (let i = 0; i < csvText.length; i++) {
+    const char = csvText[i];
+    const nextChar = csvText[i + 1];
+
+    if (char === '"') {
+      if (insideQuote && nextChar === '"') {
+        currentField += '"';
+        i++; // skip escaped quote
+      } else {
+        insideQuote = !insideQuote;
+      }
+    } else if (char === ',' && !insideQuote) {
+      currentRow.push(currentField.trim());
+      currentField = '';
+    } else if ((char === '\r' || char === '\n') && !insideQuote) {
+      if (char === '\r' && nextChar === '\n') {
+        i++; // skip \n
+      }
+      currentRow.push(currentField.trim());
+      if (currentRow.some((f) => f.length > 0)) {
+        rows.push(currentRow);
+      }
+      currentRow = [];
+      currentField = '';
+    } else {
+      currentField += char;
+    }
+  }
+
+  if (currentField.length > 0 || currentRow.length > 0) {
+    currentRow.push(currentField.trim());
+    if (currentRow.some((f) => f.length > 0)) {
+      rows.push(currentRow);
+    }
+  }
+
+  return rows;
+}
+
+function normalizeGoogleSheetCsvUrl(rawUrl: string): string {
+  const trimmed = rawUrl.trim();
+  if (trimmed.includes('/export?format=csv') || trimmed.includes('/gviz/tq?') || trimmed.includes('script.google.com')) {
+    return trimmed;
+  }
+  const match = trimmed.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
+  if (match && match[1]) {
+    const id = match[1];
+    const gidMatch = trimmed.match(/[#&?]gid=([0-9]+)/);
+    const gid = gidMatch ? gidMatch[1] : '0';
+    return `https://docs.google.com/spreadsheets/d/${id}/export?format=csv&gid=${gid}`;
+  }
+  return trimmed;
+}
+
+function parseQuestionsFromCsv(csvText: string): ServerQuestion[] {
+  const rows = parseCsvRows(csvText);
+  if (rows.length < 2) return [];
+
+  const headerRow = rows[0].map((h) => h.toLowerCase().trim());
+  const findCol = (keywords: string[]): number => {
+    return headerRow.findIndex((col) => keywords.some((kw) => col === kw || col.includes(kw)));
+  };
+
+  let qCol = findCol(['soal', 'tanya', 'pertanyaan', 'question']);
+  let optACol = findCol(['opsi a', 'pilihan a', 'jawaban a', 'a']);
+  let optBCol = findCol(['opsi b', 'pilihan b', 'jawaban b', 'b']);
+  let optCCol = findCol(['opsi c', 'pilihan c', 'jawaban c', 'c']);
+  let optDCol = findCol(['opsi d', 'pilihan d', 'jawaban d', 'd']);
+  let keyCol = findCol(['kunci', 'jawaban', 'correct', 'answer']);
+  let expCol = findCol(['bahas', 'penjelasan', 'pembahasan', 'explain', 'explanation']);
+
+  if (qCol === -1) {
+    if (rows[0].length >= 5) {
+      qCol = 1;
+      optACol = 2;
+      optBCol = 3;
+      optCCol = 4;
+      optDCol = 5;
+      keyCol = 6;
+      expCol = 7;
+    }
+  }
+
+  const result: ServerQuestion[] = [];
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row || row.length === 0) continue;
+
+    const questionText = qCol >= 0 && row[qCol] ? row[qCol].trim() : '';
+    if (!questionText) continue;
+
+    const optA = optACol >= 0 && row[optACol] ? row[optACol].trim() : '';
+    const optB = optBCol >= 0 && row[optBCol] ? row[optBCol].trim() : '';
+    const optC = optCCol >= 0 && row[optCCol] ? row[optCCol].trim() : '';
+    const optD = optDCol >= 0 && row[optDCol] ? row[optDCol].trim() : '';
+
+    const options = [optA, optB, optC, optD].filter((o) => o.length > 0);
+    if (options.length < 2) continue;
+
+    const rawKey = keyCol >= 0 && row[keyCol] ? row[keyCol].trim().toUpperCase() : 'A';
+    let correctIndex = 0;
+    if (rawKey === 'A' || rawKey === '1') correctIndex = 0;
+    else if (rawKey === 'B' || rawKey === '2') correctIndex = 1;
+    else if (rawKey === 'C' || rawKey === '3') correctIndex = 2;
+    else if (rawKey === 'D' || rawKey === '4') correctIndex = 3;
+    else {
+      const matchedIdx = options.findIndex((opt) => opt.toLowerCase() === rawKey.toLowerCase());
+      if (matchedIdx >= 0) correctIndex = matchedIdx;
+    }
+
+    if (correctIndex >= options.length) {
+      correctIndex = 0;
+    }
+
+    const explanation = expCol >= 0 && row[expCol] && row[expCol].trim()
+      ? row[expCol].trim()
+      : `Jawaban yang benar adalah pilihan ${['A', 'B', 'C', 'D'][correctIndex]}.`;
+
+    result.push({
+      id: `soal-gsheet-${Date.now()}-${i}`,
+      question: questionText,
+      options,
+      correctIndex,
+      explanation,
+    });
+  }
+
+  return result;
+}
+
+// 1. Test Connection to Google Apps Script Web App
+app.post('/api/google-sheets/test-connection', async (req, res) => {
+  const { gasUrl } = req.body;
+  const targetUrl = (gasUrl || activeSettings.gasWebAppUrl || '').trim();
+
+  if (!targetUrl || !targetUrl.startsWith('http')) {
+    return res.status(400).json({ success: false, error: 'URL Google Apps Script tidak valid atau kosong!' });
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
+
+    // Try GET or POST ping
+    const response = await fetch(targetUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'ping', examCode: activeSettings.examCode }),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    let message = 'Koneksi ke Google Apps Script berhasil!';
+    try {
+      const json = await response.json();
+      if (json && json.message) message = json.message;
+    } catch {
+      // response might be html or text
+    }
+
+    res.json({ success: true, message, status: response.status });
+  } catch (err: any) {
+    res.status(500).json({
+      success: false,
+      error: 'Gagal terhubung ke Google Apps Script: ' + (err?.name === 'AbortError' ? 'Batas waktu terlampaui (Timeout)' : err?.message || String(err)),
+    });
+  }
+});
+
+// 2. Sync Student Results to Google Sheet via Google Apps Script Web App
+app.post('/api/google-sheets/sync-results', async (req, res) => {
+  const { accessCode, gasUrl } = req.body;
+  if (accessCode !== 'TBRSKY') {
+    return res.status(403).json({ error: 'Kode akses salah!' });
+  }
+
+  const targetUrl = (gasUrl || activeSettings.gasWebAppUrl || '').trim();
+  if (!targetUrl || !targetUrl.startsWith('http')) {
+    return res.status(400).json({ error: 'URL Google Apps Script belum diisi di menu Integrasi!' });
+  }
+
+  const students = Array.from(studentsMap.values());
+  if (students.length === 0) {
+    return res.status(400).json({ error: 'Belum ada data siswa untuk disinkronkan ke Google Sheet.' });
+  }
+
+  try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 20000);
+
+    const payload = {
+      action: 'syncStudents',
+      examCode: activeSettings.examCode,
+      students,
+      timestamp: Date.now(),
+    };
+
+    const response = await fetch(targetUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    activeSettings.gasWebAppUrl = targetUrl;
+    activeSettings.lastSheetsSyncTime = Date.now();
+    activeSettings.lastSheetsSyncStatus = `Berhasil (${students.length} Siswa)`;
+    saveDatabaseToDisk();
+    broadcast({ type: 'settings:updated', settings: activeSettings });
+
+    res.json({
+      success: true,
+      count: students.length,
+      message: `Berhasil mengirim ${students.length} data siswa ke Google Sheet!`,
+    });
+  } catch (err: any) {
+    res.status(500).json({
+      error: 'Gagal menyinkronkan data ke Google Apps Script: ' + (err?.name === 'AbortError' ? 'Batas waktu terlampaui' : err?.message || String(err)),
+    });
+  }
+});
+
+// 3. Fetch Questions from Google Sheet or Google Apps Script Web App
+app.post('/api/google-sheets/fetch-sheet-questions', async (req, res) => {
+  const { accessCode, sheetUrl } = req.body;
+  if (accessCode !== 'TBRSKY') {
+    return res.status(403).json({ error: 'Kode akses salah!' });
+  }
+
+  const targetUrl = (sheetUrl || activeSettings.googleSheetQuestionsUrl || '').trim();
+  if (!targetUrl || !targetUrl.startsWith('http')) {
+    return res.status(400).json({ error: 'Tautan (URL) Google Sheet tidak valid atau kosong!' });
+  }
+
+  try {
+    const normalizedUrl = normalizeGoogleSheetCsvUrl(targetUrl);
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 15000);
+
+    const response = await fetch(normalizedUrl, {
+      headers: {
+        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+      },
+      signal: controller.signal,
+    });
+    clearTimeout(timeout);
+
+    if (!response.ok) {
+      throw new Error(`Google Sheet mengembalikan HTTP status ${response.status}. Pastikan lembar spreadsheet telah dipublikasikan atau diatur ke "Siapa saja yang memiliki link dapat melihat".`);
+    }
+
+    const contentType = response.headers.get('content-type') || '';
+    const rawText = await response.text();
+
+    let parsedQuestions: ServerQuestion[] = [];
+
+    if (contentType.includes('application/json') || rawText.trim().startsWith('{') || rawText.trim().startsWith('[')) {
+      try {
+        const json = JSON.parse(rawText);
+        const list = Array.isArray(json) ? json : json.questions || json.data || [];
+        parsedQuestions = list.map((item: any, idx: number) => ({
+          id: item.id || `soal-gsheet-${Date.now()}-${idx + 1}`,
+          question: item.question || item.soal || item.pertanyaan || '',
+          options: item.options || item.pilihan || [item.a, item.b, item.c, item.d].filter(Boolean),
+          correctIndex: typeof item.correctIndex === 'number' ? item.correctIndex : 0,
+          explanation: item.explanation || item.pembahasan || item.penjelasan || '',
+        })).filter((q: ServerQuestion) => q.question && q.options && q.options.length >= 2);
+      } catch {
+        // Fallback to CSV if not JSON
+        parsedQuestions = parseQuestionsFromCsv(rawText);
+      }
+    } else {
+      parsedQuestions = parseQuestionsFromCsv(rawText);
+    }
+
+    if (parsedQuestions.length === 0) {
+      return res.status(422).json({
+        error: 'Tidak ada soal yang berhasil dikenali dari Google Sheet. Pastikan lembar memiliki kolom: Pertanyaan, Pilihan A, Pilihan B, Pilihan C, Pilihan D, Kunci Jawaban.',
+      });
+    }
+
+    activeSettings.googleSheetQuestionsUrl = targetUrl;
+    saveDatabaseToDisk();
+    broadcast({ type: 'settings:updated', settings: activeSettings });
+
+    res.json({
+      success: true,
+      count: parsedQuestions.length,
+      questions: parsedQuestions,
+      message: `Berhasil membaca ${parsedQuestions.length} soal dari Google Sheet!`,
+    });
+  } catch (err: any) {
+    res.status(500).json({
+      error: 'Gagal membaca Google Sheet: ' + (err?.name === 'AbortError' ? 'Batas waktu koneksi terlampaui' : err?.message || String(err)),
+    });
+  }
 });
 
 // Deployment & Docs Folder Endpoints for GitHub Pages

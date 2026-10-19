@@ -705,6 +705,48 @@ class RealtimeSyncService {
     }
   }
 
+  public async testGasConnection(gasUrl?: string): Promise<{ success: boolean; message: string }> {
+    try {
+      const res = await fetch('/api/google-sheets/test-connection', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ gasUrl }),
+      });
+      const data = await res.json();
+      return data;
+    } catch (err: any) {
+      return { success: false, message: err?.message || 'Gagal terhubung ke Google Apps Script' };
+    }
+  }
+
+  public async syncResultsToGoogleSheets(accessCode: string, gasUrl?: string): Promise<{ success: boolean; count?: number; message?: string; error?: string }> {
+    try {
+      const res = await fetch('/api/google-sheets/sync-results', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accessCode, gasUrl }),
+      });
+      const data = await res.json();
+      return data;
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Gagal mengirim data ke Google Sheet' };
+    }
+  }
+
+  public async fetchQuestionsFromGoogleSheet(accessCode: string, sheetUrl: string): Promise<{ success: boolean; count?: number; questions?: Question[]; message?: string; error?: string }> {
+    try {
+      const res = await fetch('/api/google-sheets/fetch-sheet-questions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accessCode, sheetUrl }),
+      });
+      const data = await res.json();
+      return data;
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'Gagal mengambil soal dari Google Sheet' };
+    }
+  }
+
   public async getDocsStatus(): Promise<{ exists: boolean; lastModified: number | null; fileCount: number } | null> {
     try {
       const res = await fetch('/api/teacher/docs-status');
