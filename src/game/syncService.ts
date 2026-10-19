@@ -701,6 +701,10 @@ class RealtimeSyncService {
     try {
       return typeof localStorage !== 'undefined' ? localStorage.getItem('skyquiz_student_id') : null;
     } catch {
+      return null;
+    }
+  }
+
   public async getDocsStatus(): Promise<{ exists: boolean; lastModified: number | null; fileCount: number } | null> {
     try {
       const res = await fetch('/api/teacher/docs-status');

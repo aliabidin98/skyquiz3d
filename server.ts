@@ -6,7 +6,6 @@ import { fileURLToPath } from 'url';
 import fs from 'fs';
 import os from 'os';
 import { execSync } from 'child_process';
-import archiver from 'archiver';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -586,17 +585,16 @@ app.get('/api/teacher/download-docs-zip', (_req, res) => {
     }
   }
 
-  res.setHeader('Content-Type', 'application/zip');
-  res.setHeader('Content-Disposition', 'attachment; filename="skyquiz3d-docs-github-pages.zip"');
-
-  const archive = archiver('zip', { zlib: { level: 9 } });
-  archive.on('error', (err) => {
-    res.status(500).send({ error: err.message });
-  });
-
-  archive.pipe(res);
-  archive.directory(docsDir, false);
-  archive.finalize();
+  try {
+    const archivePath = path.resolve(__dirname, 'data', 'skyquiz3d-docs.tar.gz');
+    if (!fs.existsSync(path.resolve(__dirname, 'data'))) {
+      fs.mkdirSync(path.resolve(__dirname, 'data'), { recursive: true });
+    }
+    execSync(`tar -czf "${archivePath}" -C "${__dirname}" docs`);
+    res.download(archivePath, 'skyquiz3d-docs-github-pages.tar.gz');
+  } catch (err: any) {
+    res.status(500).send('Gagal membuat berkas arsip /docs: ' + (err?.message || ''));
+  }
 });
 
 // WebSocket Connection Handlers

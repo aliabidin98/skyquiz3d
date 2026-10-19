@@ -30,6 +30,11 @@ import {
   Settings2,
   Wifi,
   Lock,
+  Globe,
+  FolderArchive,
+  HardDriveDownload,
+  ExternalLink,
+  FolderCheck,
 } from 'lucide-react';
 
 interface TeacherDashboardProps {
@@ -56,6 +61,9 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const [copiedCode, setCopiedCode] = useState<boolean>(false);
   const [resettingId, setResettingId] = useState<string | null>(null);
   const [serverIps, setServerIps] = useState<string[]>([]);
+  const [docsStatus, setDocsStatus] = useState<{ exists: boolean; lastModified: number | null; fileCount: number } | null>(null);
+  const [isBuildingDocs, setIsBuildingDocs] = useState<boolean>(false);
+  const [docsToast, setDocsToast] = useState<string | null>(null);
 
   // Form states for settings
   const [formExamCode, setFormExamCode] = useState<string>(settings?.examCode || 'PAS-1');
@@ -80,6 +88,11 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       if (data?.serverIps) {
         setServerIps(data.serverIps);
       }
+    });
+
+    // Check /docs folder status
+    syncService.getDocsStatus().then((st) => {
+      if (st) setDocsStatus(st);
     });
 
     // Real-time listener for WebSocket updates
@@ -113,6 +126,26 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       clearInterval(pollTimer);
     };
   }, []);
+
+  const handleBuildDocs = async () => {
+    setIsBuildingDocs(true);
+    setDocsToast(null);
+    try {
+      const res = await syncService.buildDocsFolder('TBRSKY');
+      if (res?.success) {
+        setDocsToast(res.message);
+        const st = await syncService.getDocsStatus();
+        if (st) setDocsStatus(st);
+        setTimeout(() => setDocsToast(null), 4000);
+      } else {
+        alert('Gagal membangun folder /docs: ' + (res?.message || 'Terjadi kesalahan'));
+      }
+    } catch (err: any) {
+      alert('Terjadi kesalahan saat memproses build: ' + (err?.message || String(err)));
+    } finally {
+      setIsBuildingDocs(false);
+    }
+  };
 
   const handleGenerateExamCode = async () => {
     const updated = await syncService.generateExamCode('TBRSKY');
@@ -324,6 +357,17 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
           >
             <Share2 className="w-3.5 h-3.5 text-emerald-400" />
             <span>Bagikan QR Siswa</span>
+          </button>
+
+          {/* Deploy /docs Button */}
+          <button
+            type="button"
+            onClick={() => setActiveTab('SETTINGS')}
+            className="px-2.5 py-1.5 rounded-xl bg-purple-500/15 hover:bg-purple-500/25 text-purple-300 border border-purple-400/30 text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+            title="Opsi Deploy Folder /docs (GitHub Pages)"
+          >
+            <Globe className="w-3.5 h-3.5 text-purple-400" />
+            <span className="hidden sm:inline">Deploy /docs</span>
           </button>
 
           {/* Reset All Session */}
@@ -975,6 +1019,120 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
                 </button>
               </div>
             </form>
+
+            {/* Opsi Deploy Folder /docs untuk GitHub Pages */}
+            <div className="mt-8 pt-6 border-t border-slate-800 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-gradient-to-r from-purple-950/40 via-slate-900 to-sky-950/40 border border-purple-500/30 rounded-2xl p-4 sm:p-5 shadow-lg">
+                <div className="flex items-start gap-3">
+                  <div className="w-11 h-11 rounded-xl bg-purple-500/20 border border-purple-400/40 flex items-center justify-center text-purple-300 shrink-0 mt-0.5">
+                    <Globe className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-black text-sm sm:text-base text-white">
+                        Opsi Deploy GitHub Pages (Folder /docs)
+                      </h4>
+                      {docsStatus?.exists ? (
+                        <span className="text-[10px] font-bold text-emerald-300 bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 rounded-full flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3 text-emerald-400" />
+                          Siap Dideploy ({docsStatus.fileCount} berkas)
+                        </span>
+                      ) : (
+                        <span className="text-[10px] font-bold text-amber-300 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-full">
+                          Perlu Di-build
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs text-slate-300 mt-1 max-w-2xl leading-relaxed">
+                      GitHub Pages menyediakan hosting website gratis langsung dari branch utama melalui folder <code className="text-purple-300 font-mono bg-purple-950/60 px-1.5 py-0.5 rounded">/docs</code>. Berkas <code className="text-sky-300 font-mono bg-slate-950 px-1 py-0.5 rounded">.nojekyll</code> dan fallback <code className="text-sky-300 font-mono bg-slate-950 px-1 py-0.5 rounded">404.html</code> otomatis disertakan untuk kelancaran rute game.
+                    </p>
+                    {docsStatus?.lastModified && (
+                      <p className="text-[11px] text-slate-400 mt-1.5 flex items-center gap-1">
+                        <FolderCheck className="w-3.5 h-3.5 text-emerald-400" />
+                        Terakhir di-build: {new Date(docsStatus.lastModified).toLocaleString('id-ID')}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap sm:flex-col lg:flex-row items-center gap-2 shrink-0">
+                  <button
+                    type="button"
+                    disabled={isBuildingDocs}
+                    onClick={handleBuildDocs}
+                    className="px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-purple-600/25 transition-all cursor-pointer active:scale-95 disabled:opacity-50"
+                  >
+                    <FolderArchive className="w-4 h-4" />
+                    <span>{isBuildingDocs ? 'Sedang Membangun...' : 'Build Ulang /docs'}</span>
+                  </button>
+
+                  <a
+                    href="/api/teacher/download-docs-zip"
+                    download="skyquiz3d-docs-github-pages.tar.gz"
+                    className="px-3.5 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 font-bold text-xs flex items-center gap-1.5 transition-all cursor-pointer active:scale-95"
+                  >
+                    <HardDriveDownload className="w-4 h-4 text-sky-400" />
+                    <span>Unduh Arsip /docs</span>
+                  </a>
+                </div>
+              </div>
+
+              {docsToast && (
+                <div className="p-3 bg-emerald-500/15 border border-emerald-500/40 rounded-xl text-emerald-300 text-xs font-bold flex items-center gap-2 animate-in fade-in">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                  <span>{docsToast}</span>
+                </div>
+              )}
+
+              {/* Panduan Langkah demi Langkah Deploy GitHub Pages */}
+              <div className="bg-slate-950/70 border border-slate-800 rounded-2xl p-4 sm:p-5 space-y-3">
+                <h5 className="font-bold text-xs sm:text-sm text-sky-300 uppercase tracking-wider flex items-center gap-2">
+                  <span>Panduan Langkah Deploy ke GitHub Pages:</span>
+                </h5>
+
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-3 text-xs">
+                  <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+                    <div className="w-6 h-6 rounded-full bg-sky-500/20 text-sky-400 flex items-center justify-center font-black text-xs mb-1">
+                      1
+                    </div>
+                    <strong className="text-white block font-bold">Build Folder /docs</strong>
+                    <p className="text-slate-400 text-[11px] leading-relaxed">
+                      Klik tombol <em>Build Ulang /docs</em> di atas atau jalankan perintah <code className="text-sky-300 font-mono">npm run build:docs</code> di terminal.
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+                    <div className="w-6 h-6 rounded-full bg-sky-500/20 text-sky-400 flex items-center justify-center font-black text-xs mb-1">
+                      2
+                    </div>
+                    <strong className="text-white block font-bold">Commit & Push ke GitHub</strong>
+                    <p className="text-slate-400 text-[11px] leading-relaxed">
+                      Pastikan folder <code className="text-sky-300 font-mono">docs/</code> ter-push ke branch utama (<code className="text-sky-300 font-mono">main</code> atau <code className="text-sky-300 font-mono">master</code>).
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+                    <div className="w-6 h-6 rounded-full bg-purple-500/20 text-purple-400 flex items-center justify-center font-black text-xs mb-1">
+                      3
+                    </div>
+                    <strong className="text-white block font-bold">Atur Menu GitHub Pages</strong>
+                    <p className="text-slate-400 text-[11px] leading-relaxed">
+                      Buka repository GitHub &gt; <strong>Settings</strong> &gt; <strong>Pages</strong>. Pada <em>Source</em> pilih <strong>Deploy from a branch</strong>.
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-xl bg-slate-900 border border-slate-800 space-y-1">
+                    <div className="w-6 h-6 rounded-full bg-emerald-500/20 text-emerald-400 flex items-center justify-center font-black text-xs mb-1">
+                      4
+                    </div>
+                    <strong className="text-white block font-bold">Pilih Folder /docs & Simpan</strong>
+                    <p className="text-slate-400 text-[11px] leading-relaxed">
+                      Pilih Branch: <strong>main</strong> dan Folder: <strong>/docs</strong>, lalu klik <strong>Save</strong>. Game langsung online gratis!
+                    </p>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         )}
       </main>
