@@ -105,13 +105,15 @@ function generateRandomExamCode(): string {
   return `${prefix}-${num}`;
 }
 
+const DEFAULT_GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwX4wzAwzRP9pa8IsLavaUHrbi870F6FSjyLILdLsab9ckaiyu45AxKyZu-mia9R6Uv3Q/exec';
+
 let activeQuestions: ServerQuestion[] = [...DEFAULT_5_EXAM_QUESTIONS];
 let activeSettings: ExamSettings = {
   examCode: generateRandomExamCode(),
   shuffleQuestions: false,
   scorePerQuestion: 20,
   useComboBonus: false,
-  gasWebAppUrl: '',
+  gasWebAppUrl: DEFAULT_GAS_WEB_APP_URL,
   autoSyncToSheets: true,
   googleSheetQuestionsUrl: '',
   lastSheetsSyncTime: 0,
@@ -190,6 +192,9 @@ function loadDatabaseFromDisk() {
       }
       if (data.settings && data.settings.examCode) {
         activeSettings = { ...activeSettings, ...data.settings };
+        if (!activeSettings.gasWebAppUrl || !activeSettings.gasWebAppUrl.trim()) {
+          activeSettings.gasWebAppUrl = DEFAULT_GAS_WEB_APP_URL;
+        }
       }
       if (Array.isArray(data.questions) && data.questions.length > 0) {
         activeQuestions = data.questions;

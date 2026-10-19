@@ -7,6 +7,8 @@ type ResetListener = () => void;
 type StudentResetListener = (studentId: string) => void;
 type SettingsListener = (settings: ExamSettings) => void;
 
+const DEFAULT_GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwX4wzAwzRP9pa8IsLavaUHrbi870F6FSjyLILdLsab9ckaiyu45AxKyZu-mia9R6Uv3Q/exec';
+
 class RealtimeSyncService {
   private socket: WebSocket | null = null;
   private studentsListeners: Set<StudentsListener> = new Set();
@@ -26,6 +28,8 @@ class RealtimeSyncService {
     shuffleQuestions: false,
     scorePerQuestion: 20,
     useComboBonus: false,
+    gasWebAppUrl: DEFAULT_GAS_WEB_APP_URL,
+    autoSyncToSheets: true,
   };
 
   constructor() {
@@ -57,6 +61,9 @@ class RealtimeSyncService {
         const stored = localStorage.getItem('skyquiz_exam_settings');
         if (stored) {
           this.cachedSettings = { ...this.cachedSettings, ...JSON.parse(stored) };
+          if (!this.cachedSettings.gasWebAppUrl) {
+            this.cachedSettings.gasWebAppUrl = DEFAULT_GAS_WEB_APP_URL;
+          }
         }
       }
     } catch {

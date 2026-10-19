@@ -78,11 +78,11 @@
     "shuffleQuestions": false,
     "scorePerQuestion": 20,
     "useComboBonus": false,
-    "gasWebAppUrl": "",
+    "gasWebAppUrl": "https://script.google.com/macros/s/AKfycbwX4wzAwzRP9pa8IsLavaUHrbi870F6FSjyLILdLsab9ckaiyu45AxKyZu-mia9R6Uv3Q/exec",
     "autoSyncToSheets": true,
     "googleSheetQuestionsUrl": "",
-    "lastSheetsSyncTime": 0,
-    "lastSheetsSyncStatus": ""
+    "lastSheetsSyncTime": 1792429690720,
+    "lastSheetsSyncStatus": "Berhasil (1 Siswa)"
   },
   "questions": [
     {
@@ -146,5 +146,5 @@
       "explanation": "Jupiter adalah planet gas raksasa terbesar di tata surya dengan massa lebih dari dua kali lipat gabungan seluruh planet lainnya."
     }
   ],
-  "savedAt": 1792428637070
+  "savedAt": 1792429690720
 }

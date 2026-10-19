@@ -239,6 +239,8 @@ function getQuestionsFromSheet() {
   })).setMimeType(ContentService.MimeType.JSON);
 }`;
 
+const DEFAULT_GAS_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwX4wzAwzRP9pa8IsLavaUHrbi870F6FSjyLILdLsab9ckaiyu45AxKyZu-mia9R6Uv3Q/exec';
+
 export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   questions,
   onLaunchSimulator,
@@ -265,7 +267,7 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
   const [settingsSavedToast, setSettingsSavedToast] = useState<boolean>(false);
 
   // Google Sheets & Google Apps Script state
-  const [formGasUrl, setFormGasUrl] = useState<string>(settings?.gasWebAppUrl || '');
+  const [formGasUrl, setFormGasUrl] = useState<string>(settings?.gasWebAppUrl || DEFAULT_GAS_WEB_APP_URL);
   const [formAutoSync, setFormAutoSync] = useState<boolean>(settings?.autoSyncToSheets ?? true);
   const [formSheetQuestionsUrl, setFormSheetQuestionsUrl] = useState<string>(settings?.googleSheetQuestionsUrl || '');
   const [isTestingGas, setIsTestingGas] = useState<boolean>(false);
@@ -291,7 +293,11 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
         setFormShuffle(data.settings.shuffleQuestions);
         setFormScorePerQuestion(data.settings.scorePerQuestion);
         setFormUseCombo(data.settings.useComboBonus);
-        if (data.settings.gasWebAppUrl) setFormGasUrl(data.settings.gasWebAppUrl);
+        if (data.settings.gasWebAppUrl) {
+          setFormGasUrl(data.settings.gasWebAppUrl);
+        } else {
+          setFormGasUrl(DEFAULT_GAS_WEB_APP_URL);
+        }
         if (typeof data.settings.autoSyncToSheets === 'boolean') setFormAutoSync(data.settings.autoSyncToSheets);
         if (data.settings.googleSheetQuestionsUrl) setFormSheetQuestionsUrl(data.settings.googleSheetQuestionsUrl);
       }
@@ -311,7 +317,11 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
       setFormShuffle(newSettings.shuffleQuestions);
       setFormScorePerQuestion(newSettings.scorePerQuestion);
       setFormUseCombo(newSettings.useComboBonus);
-      if (newSettings.gasWebAppUrl) setFormGasUrl(newSettings.gasWebAppUrl);
+      if (newSettings.gasWebAppUrl) {
+        setFormGasUrl(newSettings.gasWebAppUrl);
+      } else {
+        setFormGasUrl(DEFAULT_GAS_WEB_APP_URL);
+      }
       if (typeof newSettings.autoSyncToSheets === 'boolean') setFormAutoSync(newSettings.autoSyncToSheets);
       if (newSettings.googleSheetQuestionsUrl) setFormSheetQuestionsUrl(newSettings.googleSheetQuestionsUrl);
     });
@@ -1473,18 +1483,46 @@ export const TeacherDashboard: React.FC<TeacherDashboardProps> = ({
 
                   <form onSubmit={handleSaveGasSettings} className="space-y-3">
                     <div>
-                      <label className="text-xs font-bold text-slate-300 block mb-1">
-                        URL Web App Google Apps Script (.exec):
-                      </label>
-                      <input
-                        type="url"
-                        value={formGasUrl}
-                        onChange={(e) => setFormGasUrl(e.target.value)}
-                        placeholder="https://script.google.com/macros/s/AKfycbx.../exec"
-                        className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-emerald-300 font-mono focus:outline-none focus:border-emerald-400"
-                      />
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-xs font-bold text-slate-300 block">
+                          URL Web App Google Apps Script (.exec):
+                        </label>
+                        {formGasUrl === DEFAULT_GAS_WEB_APP_URL ? (
+                          <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-400/40 px-2 py-0.5 rounded-full font-bold flex items-center gap-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                            Database Bawaan Aktif
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => setFormGasUrl(DEFAULT_GAS_WEB_APP_URL)}
+                            className="text-[11px] text-sky-400 hover:text-sky-300 hover:underline font-semibold cursor-pointer"
+                          >
+                            Gunakan URL Bawaan
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="url"
+                          value={formGasUrl}
+                          onChange={(e) => setFormGasUrl(e.target.value)}
+                          placeholder="https://script.google.com/macros/s/AKfycbx.../exec"
+                          className="w-full bg-slate-950 border border-slate-700 rounded-xl px-3 py-2 text-xs text-emerald-300 font-mono focus:outline-none focus:border-emerald-400"
+                        />
+                        {formGasUrl !== DEFAULT_GAS_WEB_APP_URL && (
+                          <button
+                            type="button"
+                            onClick={() => setFormGasUrl(DEFAULT_GAS_WEB_APP_URL)}
+                            className="px-2.5 py-2 bg-slate-800 hover:bg-slate-700 text-sky-300 border border-slate-700 text-[11px] font-bold rounded-xl whitespace-nowrap cursor-pointer transition-colors"
+                            title="Kembalikan ke URL Google Apps Script bawaan"
+                          >
+                            Reset ke Bawaan
+                          </button>
+                        )}
+                      </div>
                       <p className="text-[11px] text-slate-400 mt-1">
-                        Diperoleh setelah men-deploy skrip sebagai Web App di Google Spreadsheet Anda.
+                        Database Google Spreadsheet bawaan aktif dan siap menyimpan data hasil ujian siswa secara otomatis.
                       </p>
                     </div>
 
